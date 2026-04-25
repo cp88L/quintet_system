@@ -10,7 +10,13 @@ dependencies = [
 
 [project.optional-dependencies]
 ibkr = [
-    "ibapi>=9.81",
+    # Pulled from the local IBJts source drop, not PyPI.
+    # PyPI's `ibapi` is stuck at 9.81 and is missing modules we rely on
+    # (e.g. `order_cancel`, the `protobuf` submodule, the current `error()`
+    # signature). IBKR only ships current 10.x via the TWS API installer.
+    # To set up a new machine: download the TWS API from
+    # https://interactivebrokers.github.io/, extract it, and update this path.
+    "ibapi @ file:///home/cp/IBJts/IBJts/source/pythonclient",
 ]
 dev = [
     "pytest>=8.0",

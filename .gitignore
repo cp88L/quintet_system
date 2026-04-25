@@ -4,6 +4,12 @@ __pycache__/
 *.py[cod]
 *.ipynb_checkpoints/
 
+# build artifacts
+src/*.egg-info/
+
+# bulk market data (refreshed by step 0; not source-of-truth)
+src/quintet/data/raw/
+
 # local secrets / config
 .env
 
