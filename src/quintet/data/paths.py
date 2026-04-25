@@ -66,17 +66,18 @@ class DataPaths:
         path.mkdir(parents=True, exist_ok=True)
         return path
 
-    def processed_dir(self, symbol: str) -> Path:
+    def processed_dir(self, system: str, symbol: str) -> Path:
         """
-        Get processed data directory for a symbol, creating if needed.
+        Get processed data directory for a (subsystem, symbol), creating if needed.
 
         Args:
+            system: Subsystem alias (e.g., 'C4', 'CS4', 'E4', 'E7', 'E13')
             symbol: Product symbol (e.g., 'GC', 'ES')
 
         Returns:
-            Path to processed/{symbol}/
+            Path to processed/{system}/{symbol}/
         """
-        path = self.processed / symbol
+        path = self.processed / system / symbol
         path.mkdir(parents=True, exist_ok=True)
         return path
 
@@ -85,13 +86,14 @@ class DataPaths:
         self.raw.mkdir(parents=True, exist_ok=True)
         self.processed.mkdir(parents=True, exist_ok=True)
 
-    def ensure_product_dirs(self, symbols: list[str]) -> None:
+    def ensure_product_dirs(self, system: str, symbols: list[str]) -> None:
         """
-        Create raw/ and processed/ subdirectories for all symbols.
+        Create raw/ and processed/{system}/ subdirectories for all symbols.
 
         Args:
+            system: Subsystem alias (e.g., 'C4')
             symbols: List of product symbols
         """
         for symbol in symbols:
             self.raw_dir(symbol)
-            self.processed_dir(symbol)
+            self.processed_dir(system, symbol)

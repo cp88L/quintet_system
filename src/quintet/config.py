@@ -60,26 +60,15 @@ LIMIT_OFFSET = 0.000  # Buffer for limit prices (percentage)
 # =============================================================================
 INTRADAY_CUTOFF_HOUR = 6  # Hour defining trading day boundary for daily OHLC
 
-# Sup/Res window per system. Window-4 is computed once and shared by C4/CS4/E4.
-STRUCTURE_WINDOWS = {"C4": 4, "CS4": 4, "E4": 4, "E7": 7, "E13": 13}
-
-# Features each model expects (order must match the saved XGBoost feature_names).
-MODEL_FEATURES = {
-    "C4":  ["VNS_4",  "sEMA_11", "nATR_13", "Mo_29"],
-    "CS4": ["VNS_4",  "sEMA_13", "sEMA_59", "VNS_79"],
-    "E4":  ["VNS_4",  "Mo_17",   "VNS_7",   "nATR_59"],
-    "E7":  ["VNS_7",  "sEMA_13", "Mo_79",   "nATR_43"],
-    "E13": ["VNS_13", "sEMA_23", "nATR_31", "VNS_79"],
-}
-
-# Master list of indicators to calculate: model features across all 5 systems
-# plus RSpos at each structure window (roll-filter gate for E4/E7/E13).
-INDICATOR_WINDOWS = {
-    "sEMA":  [11, 13, 23, 59],
-    "nATR":  [13, 31, 43, 59],
-    "Mo":    [17, 29, 79],
-    "VNS":   [4, 7, 13, 79],
-    "RSpos": [4, 7, 13],
+# Indicators per system, in output column order: Sup/Res first, then the 4
+# features the system's model expects. Window suffix is the integer arg
+# passed to the matching Indicators.* method.
+INDICATORS = {
+    "C4":  ["Sup_4",  "Res_4",  "VNS_4",  "sEMA_11", "nATR_13", "Mo_29"],
+    "CS4": ["Sup_4",  "Res_4",  "VNS_4",  "sEMA_13", "sEMA_59", "VNS_79"],
+    "E4":  ["Sup_4",  "Res_4",  "VNS_4",  "Mo_17",   "VNS_7",   "nATR_59"],
+    "E7":  ["Sup_7",  "Res_7",  "VNS_7",  "sEMA_13", "Mo_79",   "nATR_43"],
+    "E13": ["Sup_13", "Res_13", "VNS_13", "sEMA_23", "nATR_31", "VNS_79"],
 }
 
 # =============================================================================

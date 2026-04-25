@@ -10,6 +10,9 @@ src/*.egg-info/
 # bulk market data (refreshed by step 0; not source-of-truth)
 src/quintet/data/raw/
 
+# generated per-system parquets (rebuilt by step 1; not source-of-truth)
+src/quintet/data/processed/
+
 # local secrets / config
 .env
 

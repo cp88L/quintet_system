@@ -45,5 +45,6 @@ class ProductConfig:
     buffer: int
     hourly: bool
     active: bool
+    systems: frozenset[str]
 
 
