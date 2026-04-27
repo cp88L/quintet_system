@@ -2,29 +2,34 @@
 
 Daily pipeline:
     0. Update contracts — fetch contracts still tradeable today from IBKR.
-    1. Process contracts — per-system parquets with indicators.
-    2. Make predictions — append `prob` column per parquet.
+    1. Indicators        — per-system parquets with technical indicators.
+    2. Clusters          — `_cluster` per-row via cross-sectional k-means
+                           on VNS strength; centroids persisted per system.
+    3. Predictions       — `prob` per-row via the system's XGBoost model.
 
-By default, only contracts whose scan window contains today are touched
-(typically ~95 contracts). Use --force-full-year to fetch, process, and
-score every contract in the rotating-year window (~462) — for first-time
-setup, indicator math changes, or model swaps.
+Coverage scope: by default the ~95 contracts whose scan window contains
+today; with `--force-full-year`, the full ~462-contract year window.
+`--no-fetch` skips Step 0; `--no-indicators` skips Steps 1, 2, and 3
+(the derived-data bundle).
 
 Usage:
-    python -m quintet.run                     # Daily (active contracts only)
-    python -m quintet.run --no-update         # Skip Step 0
-    python -m quintet.run --force-full-year   # All three steps over the full year
+    python -m quintet.run                       # daily run, active today
+    python -m quintet.run --no-fetch            # skip IBKR fetch
+    python -m quintet.run --no-indicators       # skip derived-data steps
+    python -m quintet.run --force-full-year     # rebuild everything, full year
 """
 
 import argparse
 import sys
 from datetime import date
 
-from quintet.config import SYSTEMS
+import pandas as pd
+
+from quintet.config import N_CLUSTERS, SYSTEMS
 from quintet.contract_handler.contract_registry import ContractRegistry
 from quintet.contract_handler.update_contracts import update_all_contracts
 from quintet.data.paths import DataPaths
-from quintet.make_predictions import ContractPredictor
+from quintet.make_predictions import ClusterAssigner, ContractPredictor
 from quintet.process_contracts import ContractProcessor
 
 
@@ -51,49 +56,93 @@ def step_update_contracts(force: bool) -> None:
     update_all_contracts(force=force)
 
 
-def step_process_contracts(
+def step_indicators(
     processor: ContractProcessor,
-    active_locals: set[str] | None,
+    scope: set[str] | None,
 ) -> None:
     print("\n" + "=" * 60)
-    print("STEP 1: Process contracts (indicators)")
+    print("STEP 1: Indicators")
     print("=" * 60)
     for system in SYSTEMS:
-        results = processor.process_system(system, active_locals=active_locals)
-        total = sum(results.values())
-        print(f"  {system}: {total} parquet(s) across {len(results)} symbol(s)")
+        results = processor.process_system(system, active_locals=scope)
+        n_files = sum(results.values())
+        print(f"  {system}: {n_files} parquet(s) across {len(results)} symbol(s)")
 
 
-def step_make_predictions(
+def step_clusters(assigner: ClusterAssigner) -> None:
+    print("\n" + "=" * 60)
+    print("STEP 2: Clusters")
+    print("=" * 60)
+    for system in SYSTEMS:
+        cluster = assigner.process_system(system)
+        if cluster is None:
+            print(f"  {system}: cluster OFF (N_CLUSTERS=None)")
+            continue
+
+        today = cluster["today"]
+        today_str = pd.Timestamp(today).date() if today is not None else "N/A"
+        n_in_scan = cluster["n_in_scan"]
+        n_products = cluster["n_products"]
+
+        print(
+            f"  {system}: Today={today_str}.  "
+            f"{n_in_scan} products in scan window, "
+            f"{n_products} contributing."
+        )
+
+        if cluster["misaligned"]:
+            print(f"       Misaligned (last bar < today):")
+            for sym, local_sym, last_bar in cluster["misaligned"]:
+                last_bar_str = pd.Timestamp(last_bar).date()
+                print(f"         {local_sym} ({sym}): {last_bar_str}")
+
+        if cluster["skipped_reason"] is not None:
+            n_required = N_CLUSTERS[system]
+            print(
+                f"       Skipped: {cluster['skipped_reason']} "
+                f"(n={n_products}, need ≥{n_required})"
+            )
+        else:
+            cr = ", ".join(f"{v:.4f}" for v in cluster["centroids_r"])
+            print(f"       Clustered: centroids_r=[{cr}]")
+
+
+def step_predictions(
     predictor: ContractPredictor,
-    active_locals: set[str] | None,
+    scope: set[str] | None,
 ) -> None:
     print("\n" + "=" * 60)
-    print("STEP 2: Make predictions (prob)")
+    print("STEP 3: Predictions")
     print("=" * 60)
     for system in SYSTEMS:
-        results = predictor.process_system(system, active_locals=active_locals)
-        total = sum(results.values())
-        print(f"  {system}: {total} parquet(s) scored")
+        results = predictor.process_system(system, active_locals=scope)
+        n_scored = sum(results.values())
+        print(f"  {system}: {n_scored} parquet(s) scored across {len(results)} symbol(s)")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Quintet trading system - daily pipeline")
     parser.add_argument(
-        "--no-update",
+        "--no-fetch",
         action="store_true",
-        help="Skip Step 0 contract update",
+        help="Skip Step 0 (IBKR contract fetch). Use existing raw CSVs as-is.",
+    )
+    parser.add_argument(
+        "--no-indicators",
+        action="store_true",
+        help=(
+            "Skip Step 1 entirely (indicators, clusters, and predictions are "
+            "all bundled). Use only when you want a Step 0 fetch without "
+            "rebuilding any derived data."
+        ),
     )
     parser.add_argument(
         "--force-full-year",
         action="store_true",
         help=(
-            "Run all three steps over the full year window (~462 contracts) "
-            "instead of just contracts active today (~95). Forces Step 0 to "
-            "fetch every contract in the year cycle, Step 1 to (re)compute "
-            "indicators on every raw CSV, and Step 2 to (re)score every "
-            "parquet. Use for first-time setup, indicator math changes, or "
-            "model swaps."
+            "Run every step over the full year window (~462 contracts) "
+            "instead of just contracts active today (~95). Pair with "
+            "--no-fetch to rebuild from existing CSVs without re-hitting IBKR."
         ),
     )
     args = parser.parse_args()
@@ -104,23 +153,31 @@ def main() -> int:
 
     today = date.today()
     if args.force_full_year:
-        active_locals: set[str] | None = None
+        scope: set[str] | None = None
+        print("Coverage: all contracts in year window")
     else:
-        active_locals = _build_active_locals(registry, today)
-        print(f"Active contracts today: {len(active_locals)}")
+        scope = _build_active_locals(registry, today)
+        print(f"Coverage: {len(scope)} active contracts today")
 
-    if args.no_update:
+    if args.no_fetch:
         print("=" * 60)
-        print("STEP 0: Update contracts (skipped via --no-update)")
+        print("STEP 0: Update contracts (skipped via --no-fetch)")
         print("=" * 60)
     else:
         step_update_contracts(force=args.force_full_year)
 
     processor = ContractProcessor()
     predictor = ContractPredictor(master=processor.master)
+    assigner = ClusterAssigner(master=processor.master, registry=registry)
 
-    step_process_contracts(processor, active_locals)
-    step_make_predictions(predictor, active_locals)
+    if args.no_indicators:
+        print("\n" + "=" * 60)
+        print("STEPS 1-3: skipped via --no-indicators")
+        print("=" * 60)
+    else:
+        step_indicators(processor, scope)
+        step_clusters(assigner)
+        step_predictions(predictor, scope)
     return 0
 
 

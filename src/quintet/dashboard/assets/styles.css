@@ -1,96 +1,16 @@
-/* Quintet Dashboard Custom Styles */
+/* Quintet Dashboard custom styles. */
 
-/* dcc.Dropdown dark theme (Dash 3+/react-select v5 uses BEM `.Select__*`).
-   Keep the old `.Select-*` rules too so older Dash falls back gracefully. */
-
-/* Control (the closed dropdown box) */
-.Select__control,
-.Select-control {
-    background-color: #303030 !important;
-    border-color: #555555 !important;
-    color: #ffffff !important;
-    box-shadow: none !important;
+/* Bootswatch DARKLY ships `.form-select` with hardcoded `background-color:#fff;
+   color:#303030`, so dbc.Select renders white on the dark page. Re-point it at
+   the theme's body variables (DARKLY sets --bs-body-bg=#222, body-color=#dee2e6).
+   Caret arrow already gets its dark variant via the theme's
+   `[data-bs-theme=dark] .form-select` rule. */
+.form-select {
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    border-color: var(--bs-border-color);
 }
 
-.Select__control--is-focused,
-.Select__control--menu-is-open {
-    border-color: #0d6efd !important;
-    box-shadow: 0 0 0 1px #0d6efd !important;
-}
-
-/* Selected value text */
-.Select__single-value,
-.Select__multi-value__label,
-.Select-value-label {
-    color: #ffffff !important;
-}
-
-.Select__placeholder,
-.Select-placeholder {
-    color: #aaaaaa !important;
-}
-
-/* Typed input text */
-.Select__input-container,
-.Select__input,
-.Select-input > input {
-    color: #ffffff !important;
-}
-
-/* Indicators (arrow / clear / separator) */
-.Select__indicator,
-.Select__dropdown-indicator {
-    color: #aaaaaa !important;
-}
-
-.Select__indicator-separator {
-    background-color: #555555 !important;
-}
-
-/* Open menu */
-.Select__menu,
-.Select-menu-outer {
-    background-color: #303030 !important;
-    border-color: #555555 !important;
-    color: #ffffff !important;
-}
-
-.Select__menu-list {
-    background-color: #303030 !important;
-}
-
-/* Options inside the menu */
-.Select__option,
-.Select-option {
-    background-color: #303030 !important;
-    color: #ffffff !important;
-}
-
-.Select__option--is-focused,
-.Select-option.is-focused {
-    background-color: #444444 !important;
-    color: #ffffff !important;
-}
-
-.Select__option--is-selected,
-.Select-option.is-selected {
-    background-color: #0d6efd !important;
-    color: #ffffff !important;
-}
-
-.Select__option--is-disabled,
-.Select-option.is-disabled {
-    background-color: #303030 !important;
-    color: #888888 !important;
-    font-style: italic;
-    cursor: default !important;
-}
-
-.VirtualizedSelectFocusedOption {
-    background-color: #444444 !important;
-}
-
-/* Chart container */
 .dash-graph {
     border-radius: 8px;
     overflow: hidden;
@@ -111,13 +31,4 @@ h2 {
 .card {
     background-color: #2d2d2d;
     border: 1px solid #404040;
-}
-
-.group-header {
-    color: #888888;
-    border-bottom: 1px solid #444444;
-    padding-bottom: 8px;
-    margin-top: 1.5rem;
-    margin-bottom: 1rem;
-    font-weight: 500;
 }

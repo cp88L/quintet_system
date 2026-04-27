@@ -1,17 +1,6 @@
 """Dashboard configuration - colors, chart settings, and UI options."""
 
 # =============================================================================
-# COLORS - Probabilities (one per system alias)
-# =============================================================================
-PROB_COLORS = {
-    "prob_C4":  "#E63946",  # Red
-    "prob_CS4": "#F4A261",  # Orange
-    "prob_E4":  "#457B9D",  # Steel blue
-    "prob_E7":  "#2A9D8F",  # Teal
-    "prob_E13": "#A78BFA",  # Violet
-}
-
-# =============================================================================
 # COLORS - Support/Resistance
 # =============================================================================
 SUPPORT_COLOR = "darkred"
@@ -59,18 +48,6 @@ CHART_CONFIG = {
     "editable": False,
     "staticPlot": False,
 }
-
-# =============================================================================
-# DATE RANGE OPTIONS
-# =============================================================================
-DATE_RANGE_OPTIONS = [
-    {"label": "1 Month", "value": 30},
-    {"label": "3 Months", "value": 90},
-    {"label": "6 Months", "value": 180},
-    {"label": "1 Year", "value": 365},
-    {"label": "All", "value": 0},
-]
-DEFAULT_DATE_RANGE = 180
 
 # =============================================================================
 # MONTH CODES

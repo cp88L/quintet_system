@@ -12,6 +12,25 @@ import plotly.io as pio
 pio.templates.default = "plotly_dark"
 
 
+_INDEX_TEMPLATE = """<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+    <head>
+        {%metas%}
+        <title>{%title%}</title>
+        {%favicon%}
+        {%css%}
+    </head>
+    <body>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+    </body>
+</html>"""
+
+
 def create_app() -> Dash:
     pages_folder = Path(__file__).parent / "pages"
 
@@ -22,6 +41,7 @@ def create_app() -> Dash:
         external_stylesheets=[dbc.themes.DARKLY],
         suppress_callback_exceptions=True,
         title="Quintet Dashboard",
+        index_string=_INDEX_TEMPLATE,
     )
 
     app.layout = dbc.Container([page_container], fluid=True)

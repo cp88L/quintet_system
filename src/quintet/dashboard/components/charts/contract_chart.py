@@ -12,7 +12,6 @@ from quintet.dashboard.config import (
     LAST_DAY_COLOR,
     OHLC_DECREASING,
     OHLC_INCREASING,
-    PROB_COLORS,
     RESISTANCE_COLOR,
     SCAN_END_COLOR,
     SCAN_START_COLOR,
@@ -29,15 +28,15 @@ def create_contract_figure(
     contract_dates: ContractDates | None = None,
     system_filter: str = "all",
 ) -> go.Figure:
-    """OHLC + Sup/Res overlays with a probability subplot.
+    """OHLC + Sup/Res overlays with a volume subplot.
 
     Args:
         df: Merged contract frame (Open/High/Low/Settle/Volume, Sup_w/Res_w
-            for windows present, prob_{C4,CS4,E4,E7,E13} for systems present).
+            for windows present).
         title: Chart title.
         days: Number of trailing days to show (0 for all).
         contract_dates: Optional scan_start / scan_end / last_day markers.
-        system_filter: "all" or one of C4/CS4/E4/E7/E13.
+        system_filter: "all" or one of C4/CS4/E4/E7/E13 (filters S/R overlays).
     """
     if df is None or len(df) == 0:
         return _create_empty_figure(title)
@@ -57,18 +56,16 @@ def create_contract_figure(
         shared_xaxes=True,
         vertical_spacing=0.03,
         row_heights=SUBPLOT_ROW_HEIGHTS,
-        specs=[[{"secondary_y": True}], [{"secondary_y": False}]],
     )
 
     _add_all_sr_traces(fig, df, system_filter)
-    _add_volume_bars(fig, df)
     _add_ohlc_trace(fig, df)
-    _add_probability_traces(fig, df, system_filter)
+    _add_volume_bars(fig, df)
 
     if contract_dates:
         _add_date_lines(fig, contract_dates, df)
 
-    _configure_layout(fig, exclude_dates, df)
+    _configure_layout(fig, exclude_dates)
     return fig
 
 
@@ -139,35 +136,13 @@ def _add_volume_bars(fig: go.Figure, df: pd.DataFrame) -> None:
             x=df.index,
             y=df["Volume"],
             name="Volume",
-            marker_color="rgba(128,128,128,0.3)",
+            marker_color="rgba(128,128,128,0.6)",
             hovertemplate="Vol: %{y:,.0f}<extra></extra>",
             showlegend=False,
         ),
-        row=1,
+        row=2,
         col=1,
-        secondary_y=True,
     )
-
-
-def _add_probability_traces(fig: go.Figure, df: pd.DataFrame, system_filter: str = "all") -> None:
-    for prob_col, color in PROB_COLORS.items():
-        if system_filter != "all" and not prob_col.endswith(f"_{system_filter}"):
-            continue
-        if prob_col not in df.columns:
-            continue
-
-        label = prob_col.replace("prob_", "")
-        fig.add_trace(
-            go.Scatter(
-                x=df.index,
-                y=df[prob_col],
-                name=label,
-                line=dict(color=color, width=1.5),
-                hovertemplate=f"{label}: %{{y:.3f}}<extra></extra>",
-            ),
-            row=2,
-            col=1,
-        )
 
 
 def _add_date_lines(
@@ -221,7 +196,7 @@ def _calc_exclude_dates(df: pd.DataFrame) -> list:
     return [d for d in all_dates if d.date() not in trading_dates]
 
 
-def _configure_layout(fig: go.Figure, exclude_dates: list, df: pd.DataFrame) -> None:
+def _configure_layout(fig: go.Figure, exclude_dates: list) -> None:
     fig.update_layout(
         height=CHART_HEIGHT,
         xaxis_rangeslider_visible=False,
@@ -235,19 +210,7 @@ def _configure_layout(fig: go.Figure, exclude_dates: list, df: pd.DataFrame) -> 
         fig.update_xaxes(rangebreaks=[dict(values=exclude_dates)])
 
     fig.update_yaxes(title_text="", row=1, col=1)
-    fig.update_yaxes(title_text="", row=2, col=1)
-
-    if "Volume" in df.columns:
-        max_vol = df["Volume"].max()
-        if max_vol > 0:
-            fig.update_yaxes(
-                range=[0, max_vol * 6],
-                visible=False,
-                secondary_y=True,
-                row=1,
-                col=1,
-            )
-
+    fig.update_yaxes(title_text="Volume", row=2, col=1)
     fig.update_xaxes(domain=[0, 1])
     fig.update_xaxes(title_text="", row=2, col=1)
 

@@ -100,6 +100,8 @@ class ContractProcessor:
                 df[col] = Indicators.calculate_vns(df, window)
             elif family == "Mo":
                 df[col] = Indicators.calculate_mo(df, window)
+            elif family == "RSpos":
+                df[col] = Indicators.calculate_rs_pos(df, window)
             else:
                 raise ValueError(f"Unknown indicator {col!r}")
 

@@ -60,15 +60,16 @@ LIMIT_OFFSET = 0.000  # Buffer for limit prices (percentage)
 # =============================================================================
 INTRADAY_CUTOFF_HOUR = 6  # Hour defining trading day boundary for daily OHLC
 
-# Indicators per system, in output column order: Sup/Res first, then the 4
-# features the system's model expects. Window suffix is the integer arg
-# passed to the matching Indicators.* method.
+# Indicators per system, in output column order: Sup/Res first, then RSpos
+# (equity systems only — used by the roll-in filter), then the 4 features
+# the system's model expects. Window suffix is the integer arg passed to
+# the matching Indicators.* method.
 INDICATORS = {
-    "C4":  ["Sup_4",  "Res_4",  "VNS_4",  "sEMA_11", "nATR_13", "Mo_29"],
-    "CS4": ["Sup_4",  "Res_4",  "VNS_4",  "sEMA_13", "sEMA_59", "VNS_79"],
-    "E4":  ["Sup_4",  "Res_4",  "VNS_4",  "Mo_17",   "VNS_7",   "nATR_59"],
-    "E7":  ["Sup_7",  "Res_7",  "VNS_7",  "sEMA_13", "Mo_79",   "nATR_43"],
-    "E13": ["Sup_13", "Res_13", "VNS_13", "sEMA_23", "nATR_31", "VNS_79"],
+    "C4":  ["Sup_4",  "Res_4",             "VNS_4",  "sEMA_11", "nATR_13", "Mo_29"],
+    "CS4": ["Sup_4",  "Res_4",             "VNS_4",  "sEMA_13", "sEMA_59", "VNS_79"],
+    "E4":  ["Sup_4",  "Res_4",  "RSpos_4",  "VNS_4",  "Mo_17",   "VNS_7",   "nATR_59"],
+    "E7":  ["Sup_7",  "Res_7",  "RSpos_7",  "VNS_7",  "sEMA_13", "Mo_79",   "nATR_43"],
+    "E13": ["Sup_13", "Res_13", "RSpos_13", "VNS_13", "sEMA_23", "nATR_31", "VNS_79"],
 }
 
 # =============================================================================
@@ -90,6 +91,30 @@ PRECISION = {
 }
 WILSON_ALPHA = 0.20
 LOOKBACK_WINDOW = 60
+
+# =============================================================================
+# CROSS-SECTIONAL CLUSTER FILTER
+# =============================================================================
+# Each day, after per-product probabilities are produced, the system clusters
+# its live universe by VNS_{SYSTEM_LABEL} (the seed/strength feature) using
+# k-means, sorts cluster ids by centroid value (ascending), and zeros out
+# predictions for products whose cluster id is not in INCLUDE_CLUSTERS.
+#
+# N_CLUSTERS=None disables the filter for that system (E13).
+N_CLUSTERS = {
+    "C4":  3,
+    "CS4": 4,
+    "E4":  4,
+    "E7":  4,
+    "E13": None,
+}
+INCLUDE_CLUSTERS = {
+    "C4":  {0, 2},
+    "CS4": {0},
+    "E4":  {3},
+    "E7":  {3},
+    "E13": None,
+}
 
 # =============================================================================
 # IB ERROR CODES

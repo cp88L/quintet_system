@@ -153,3 +153,17 @@ class Indicators:
         slow = Indicators.sma(df, window)
         mo = (fast - slow) / slow
         return mo
+
+    @classmethod
+    def calculate_rs_pos(cls, df, window):
+        """RSpos = (Settle - support) / (resistance - support)
+
+        Position of price within the support/resistance range, in [0, 1] when
+        Settle sits between support and resistance. Used as the roll-in filter
+        on equity systems (only roll into the next contract if RSpos meets the
+        per-system minimum).
+        """
+        resistance = cls.resistance(df, window)
+        support = cls.support(df, window)
+        rs_pos = (df['Settle'] - support) / (resistance - support)
+        return rs_pos
