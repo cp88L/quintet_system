@@ -91,6 +91,7 @@ PRECISION = {
 }
 WILSON_ALPHA = 0.20
 LOOKBACK_WINDOW = 60
+TARGET_MARGIN = 0.02  # Buy_B/Sell_A margin: long = (prev_close − sup) × this; short = (res − prev_close) × this. Mirrors data_pipeline.
 
 # =============================================================================
 # CROSS-SECTIONAL CLUSTER FILTER

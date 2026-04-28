@@ -3,9 +3,12 @@
 Daily pipeline:
     0. Update contracts — fetch contracts still tradeable today from IBKR.
     1. Indicators        — per-system parquets with technical indicators.
-    2. Clusters          — `_cluster` per-row via cross-sectional k-means
-                           on VNS strength; centroids persisted per system.
+    2. Clusters          — cross-sectional k-means on today's VNS strength;
+                           centroids and per-product labels held in-process.
     3. Predictions       — `prob` per-row via the system's XGBoost model.
+    4. Tau               — pooled Wilson lower-bound walkdown over the
+                           per-product 60-bar lookback; one tau per system,
+                           in-process only.
 
 Coverage scope: by default the ~95 contracts whose scan window contains
 today; with `--force-full-year`, the full ~462-contract year window.
@@ -25,12 +28,13 @@ from datetime import date
 
 import pandas as pd
 
-from quintet.config import N_CLUSTERS, SYSTEMS
+from quintet.config import N_CLUSTERS, PRECISION, SYSTEMS
 from quintet.contract_handler.contract_registry import ContractRegistry
 from quintet.contract_handler.update_contracts import update_all_contracts
 from quintet.data.paths import DataPaths
 from quintet.make_predictions import ClusterAssigner, ContractPredictor
 from quintet.process_contracts import ContractProcessor
+from quintet.tau import compute_system_tau
 
 
 def _build_active_locals(registry: ContractRegistry, today: date) -> set[str]:
@@ -59,12 +63,13 @@ def step_update_contracts(force: bool) -> None:
 def step_indicators(
     processor: ContractProcessor,
     scope: set[str] | None,
+    asof: date | None,
 ) -> None:
     print("\n" + "=" * 60)
     print("STEP 1: Indicators")
     print("=" * 60)
     for system in SYSTEMS:
-        results = processor.process_system(system, active_locals=scope)
+        results = processor.process_system(system, active_locals=scope, asof=asof)
         n_files = sum(results.values())
         print(f"  {system}: {n_files} parquet(s) across {len(results)} symbol(s)")
 
@@ -120,6 +125,35 @@ def step_predictions(
         print(f"  {system}: {n_scored} parquet(s) scored across {len(results)} symbol(s)")
 
 
+def step_taus(
+    today: date,
+    registry: ContractRegistry,
+    paths: DataPaths,
+) -> None:
+    print("\n" + "=" * 60)
+    print("STEP 4: Tau")
+    print("=" * 60)
+    for system in SYSTEMS:
+        result = compute_system_tau(system, today, registry, paths)
+        target = PRECISION[system]
+        n_pool = result["n_pool"]
+        n_pos = result["n_positives"]
+        ls = result.get("lookback_status", {})
+        lb_str = f"lookback cached={ls.get('cached',0)} rebuilt={ls.get('rebuilt',0)}"
+        if not result["gate_pass"]:
+            print(
+                f"  {system}: tau=NaN (no k meets target={target:.4f}); "
+                f"n_pool={n_pool}, positives={n_pos}, products={len(result['products'])}, {lb_str}"
+            )
+            continue
+        print(
+            f"  {system}: tau={result['tau']:.4f}, target={target:.4f}, "
+            f"n_pool={n_pool}, positives={n_pos}, "
+            f"best_k={result['best_k']}, prec@k={result['precision_at_k']:.4f}, "
+            f"wilson_lb@k={result['wilson_lb_at_k']:.4f}, {lb_str}"
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Quintet trading system - daily pipeline")
     parser.add_argument(
@@ -145,6 +179,15 @@ def main() -> int:
             "--no-fetch to rebuild from existing CSVs without re-hitting IBKR."
         ),
     )
+    parser.add_argument(
+        "--trim-today",
+        action="store_true",
+        help=(
+            "Drop rows whose date == today before computing indicators, "
+            "clusters, and predictions. Use mid-session in dev to avoid "
+            "IBKR's still-open partial bar."
+        ),
+    )
     args = parser.parse_args()
 
     paths = DataPaths()
@@ -152,12 +195,15 @@ def main() -> int:
     registry.load()
 
     today = date.today()
+    asof: date | None = today if args.trim_today else None
     if args.force_full_year:
         scope: set[str] | None = None
         print("Coverage: all contracts in year window")
     else:
         scope = _build_active_locals(registry, today)
         print(f"Coverage: {len(scope)} active contracts today")
+    if asof is not None:
+        print(f"Trim: dropping rows >= {asof}")
 
     if args.no_fetch:
         print("=" * 60)
@@ -172,12 +218,13 @@ def main() -> int:
 
     if args.no_indicators:
         print("\n" + "=" * 60)
-        print("STEPS 1-3: skipped via --no-indicators")
+        print("STEPS 1-4: skipped via --no-indicators")
         print("=" * 60)
     else:
-        step_indicators(processor, scope)
+        step_indicators(processor, scope, asof)
         step_clusters(assigner)
         step_predictions(predictor, scope)
+        step_taus(today, registry, paths)
     return 0
 
 

@@ -207,3 +207,98 @@ Backtest and live system both encode the same wrong dates, so paper P&L and
 the live signals remain mutually consistent. Fixing only one side breaks
 parity (memory: `feedback_backtest_parity.md`) and would invalidate
 walk-forward statistics. Schedule (1)–(5) as a single coordinated change.
+
+## 2. SR3 (3-Month SOFR) — live moved to earlier-roll config; backtest still on old config
+
+### Status
+
+Open. **Live ran ahead of the backtest on 2026-04-28.** This is the opposite
+parity hazard from the SB/W item: there both are wrong but aligned; here live
+is on a new (intended) config and backtest is still on the old one. Until the
+backtest is regenerated, walk-forward evaluation that includes post-2026-04-28
+data will use mismatched SR3 timing. Schedule (1)–(4) below as a single
+coordinated regen.
+
+### What changed (2026-04-28, live only)
+
+`src/quintet/data/reference/ibkr_product_master.csv`, SR3 row:
+
+| Column        |  Old |  New | Effect |
+|---|---:|---:|---|
+| `last_month`  |  -1  |  -3  | Target month for `last_day` shifts from (expiration − 1 month) to (expiration − 3 months) — i.e. roll out a full quarter earlier. |
+| `last_day`    |  -2  |  -3  | Within the target month, position shifts from 2nd-to-last business day to 3rd-to-last business day. |
+| `buffer`      |  140 |   60 | Gap between `end_scan` and `last_day` shrinks from 140 to 60 trading days, sliding the scan window forward toward expiration. |
+
+Concrete impact on the next-to-expire contract (SR3M6, expiration 2026-09-15):
+
+| Field        | Old        | New        |
+|---|---|---|
+| `start_scan` | 2025-11-11 | 2026-01-05 |
+| `end_scan`   | 2026-02-12 | 2026-04-03 |
+| `last_day`   | 2026-08-28 | 2026-06-26 |
+
+`src/quintet/data/reference/futures_contracts_2021_2027.json` was regenerated
+for SR3 only (all 11 contracts) by replicating the algorithm in
+`/home/cp/dev/eod_proto/notebooks/02_scan_contracts.ipynb` and using its
+`pd.bdate_range('2024-01-01', '2027-12-31')` fallback path — SR3 has no entry
+in `master_calendar_2024-2027.csv`, so the notebook itself would also fall
+back to plain Mon-Fri (no holiday calendar). Two `.bak` files in the same
+directory hold pre-edit snapshots.
+
+### Sync steps for backtest
+
+1. **`data_pipeline_package/data/reference/product_master.csv`**, SR3 row:
+   - `Last Long Month: -1 → -3`
+   - `Last Long Day:   -2 → -3`
+   - `Last Short Month: -1 → -3` (apply for symmetry — SR3 only runs long in
+     quintet, but the data_pipeline master keeps both columns consistent)
+   - `Last Short Day:   -2 → -3`
+   - `Buffer Days:    140 → 60`
+
+2. Regenerate the SR3 backtest pickles:
+   - `data_pipeline_package/data/processed/interest_rates/long/sofr_3.pkl`
+   - `data_pipeline_package/data/processed/interest_rates/short/sofr_3.pkl`
+     (for symmetry)
+
+3. Re-run the equity-long notebooks that consume `sofr_3.pkl` so model
+   artifacts pick up the new SR3 timing (per
+   `system_to_notebook_map.md`):
+   - `final_equities_4.ipynb`  (E4)
+   - `final_equities_7.ipynb`  (E7)
+   - `final_equities_13.ipynb` (E13)
+
+4. Re-run `combined_systems_plus_short.ipynb` so the combined backtest is
+   rebuilt against the corrected SR3 timing.
+
+### Verification
+
+After regen, expected `last_day` values for SR3 contracts that are still
+in flight (computed from the live-side `pd.bdate_range` fallback — Mon-Fri,
+no US holidays):
+
+| Contract | Expected `last_day` |
+|---|---|
+| SR3M6 | 2026-06-26 |
+| SR3U6 | 2026-09-28 |
+| SR3Z6 | 2026-12-29 |
+| SR3H7 | 2027-03-29 |
+| SR3M7 | 2027-06-28 |
+| SR3U7 | 2027-09-28 |
+
+The backtest computes `last_day` from CSI bar dates inside
+`data_pipeline_package/scripts/transform/breakeven_labels.py`, so its
+output may differ from these by 0–2 trading days when its base date
+diverges from the live-side bdate_range. Cross-check that
+backtest's regenerated `Active_Days` for SR3 lines up with live's
+`(start_scan, end_scan, last_day)` triplet in
+`futures_contracts_2021_2027.json` — and if there's drift, the live JSON
+is the source of truth (it was just produced from the new master).
+
+### Why this needs to ship soon
+
+While SR3 is divergent, every walk-forward training/test split that
+includes post-2026-04-28 data will use mismatched timing between live
+signals and backtest evaluation. Live SR3 already picks SR3U6 today
+under the new windows; the most recent backtest pkl is still wired for
+SR3M6 entries until regen. The longer this sits, the more out-of-sample
+evaluation noise it injects.

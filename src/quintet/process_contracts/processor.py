@@ -5,6 +5,7 @@ Each parquet carries OHLCV plus the indicators listed in INDICATORS[system],
 in that order.
 """
 
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -70,9 +71,17 @@ class ContractProcessor:
         input_path: Path,
         output_path: Path,
         system: str,
+        asof: date | None = None,
     ) -> pd.DataFrame:
-        """Read raw CSV, compute indicators for `system`, write slim parquet."""
+        """Read raw CSV, compute indicators for `system`, write slim parquet.
+
+        When `asof` is provided, rows whose date is >= `asof` are dropped
+        before any aggregation or indicator computation — used in dev to
+        strip today's still-open partial bar.
+        """
         df = pd.read_csv(input_path, parse_dates=["timestamp"])
+        if asof is not None:
+            df = df[df["timestamp"].dt.normalize() < pd.Timestamp(asof)]
         if self._is_hourly_data(df):
             df = self._aggregate_hourly_to_daily(df)
 
@@ -126,6 +135,7 @@ class ContractProcessor:
         system: str,
         symbol: str,
         active_locals: set[str] | None = None,
+        asof: date | None = None,
     ) -> int:
         """Process every raw CSV for `symbol` into processed/{system}/{symbol}/.
 
@@ -133,7 +143,7 @@ class ContractProcessor:
         the processed dir as a strict mirror of the raw dir. When
         `active_locals` is provided, only CSVs whose stem is in that set are
         (re)processed; existing parquets for inactive contracts are left
-        untouched.
+        untouched. `asof` is forwarded to `process_file`.
         """
         raw_dir = self.paths.raw / symbol
         if not raw_dir.exists():
@@ -150,7 +160,7 @@ class ContractProcessor:
             if active_locals is not None and csv_file.stem not in active_locals:
                 continue
             output_file = processed_dir / (csv_file.stem + ".parquet")
-            self.process_file(csv_file, output_file, system=system)
+            self.process_file(csv_file, output_file, system=system, asof=asof)
             count += 1
         return count
 
@@ -158,14 +168,18 @@ class ContractProcessor:
         self,
         system: str,
         active_locals: set[str] | None = None,
+        asof: date | None = None,
     ) -> dict[str, int]:
         """Process products in `system`'s universe. Returns symbol → file count.
 
-        See `process_symbol` for `active_locals` semantics.
+        See `process_symbol` for `active_locals` semantics. `asof` is
+        forwarded to `process_file`.
         """
         results: dict[str, int] = {}
         for symbol in self.master.get_products_for_system(system):
-            count = self.process_symbol(system, symbol, active_locals=active_locals)
+            count = self.process_symbol(
+                system, symbol, active_locals=active_locals, asof=asof
+            )
             if count > 0:
                 results[symbol] = count
         return results

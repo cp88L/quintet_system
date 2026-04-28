@@ -11778,8 +11778,8 @@
           "exchange": "CME",
           "contractMonth": "202503",
           "start_scan": "2024-08-14",
-          "end_scan": "2025-01-02",
-          "last_day": "2025-03-27",
+          "end_scan": "2024-12-11",
+          "last_day": "2025-05-28",
           "lastTradeDateOrContractMonth": "20250617"
         },
         "202506": {
@@ -11787,9 +11787,9 @@
           "conId": 385575871,
           "exchange": "CME",
           "contractMonth": "202506",
-          "start_scan": "2025-01-03",
-          "end_scan": "2025-04-03",
-          "last_day": "2025-06-26",
+          "start_scan": "2024-12-12",
+          "end_scan": "2025-03-12",
+          "last_day": "2025-08-27",
           "lastTradeDateOrContractMonth": "20250916"
         },
         "202509": {
@@ -11797,9 +11797,9 @@
           "conId": 385575851,
           "exchange": "CME",
           "contractMonth": "202509",
-          "start_scan": "2025-04-04",
-          "end_scan": "2025-07-04",
-          "last_day": "2025-09-26",
+          "start_scan": "2025-03-13",
+          "end_scan": "2025-06-11",
+          "last_day": "2025-11-26",
           "lastTradeDateOrContractMonth": "20251216"
         },
         "202512": {
@@ -11807,9 +11807,9 @@
           "conId": 385575904,
           "exchange": "CME",
           "contractMonth": "202512",
-          "start_scan": "2025-07-07",
-          "end_scan": "2025-10-06",
-          "last_day": "2025-12-29",
+          "start_scan": "2025-06-12",
+          "end_scan": "2025-09-10",
+          "last_day": "2026-02-25",
           "lastTradeDateOrContractMonth": "20260317"
         },
         "202603": {
@@ -11817,9 +11817,9 @@
           "conId": 385575885,
           "exchange": "CME",
           "contractMonth": "202603",
-          "start_scan": "2025-10-07",
-          "end_scan": "2026-01-02",
-          "last_day": "2026-03-27",
+          "start_scan": "2025-09-11",
+          "end_scan": "2025-12-10",
+          "last_day": "2026-05-27",
           "lastTradeDateOrContractMonth": "20260616"
         },
         "202606": {
@@ -11827,9 +11827,9 @@
           "conId": 385575866,
           "exchange": "CME",
           "contractMonth": "202606",
-          "start_scan": "2026-01-05",
-          "end_scan": "2026-04-03",
-          "last_day": "2026-06-26",
+          "start_scan": "2025-12-11",
+          "end_scan": "2026-03-12",
+          "last_day": "2026-08-27",
           "lastTradeDateOrContractMonth": "20260915"
         },
         "202609": {
@@ -11837,9 +11837,9 @@
           "conId": 385575844,
           "exchange": "CME",
           "contractMonth": "202609",
-          "start_scan": "2026-04-06",
-          "end_scan": "2026-07-06",
-          "last_day": "2026-09-28",
+          "start_scan": "2026-03-13",
+          "end_scan": "2026-06-11",
+          "last_day": "2026-11-26",
           "lastTradeDateOrContractMonth": "20261215"
         },
         "202612": {
@@ -11847,9 +11847,9 @@
           "conId": 385575900,
           "exchange": "CME",
           "contractMonth": "202612",
-          "start_scan": "2026-07-07",
-          "end_scan": "2026-10-06",
-          "last_day": "2026-12-29",
+          "start_scan": "2026-06-12",
+          "end_scan": "2026-09-09",
+          "last_day": "2027-02-24",
           "lastTradeDateOrContractMonth": "20270316"
         },
         "202703": {
@@ -11857,9 +11857,9 @@
           "conId": 385575880,
           "exchange": "CME",
           "contractMonth": "202703",
-          "start_scan": "2026-10-07",
-          "end_scan": "2027-01-04",
-          "last_day": "2027-03-29",
+          "start_scan": "2026-09-10",
+          "end_scan": "2026-12-10",
+          "last_day": "2027-05-27",
           "lastTradeDateOrContractMonth": "20270615"
         },
         "202706": {
@@ -11867,9 +11867,9 @@
           "conId": 385575861,
           "exchange": "CME",
           "contractMonth": "202706",
-          "start_scan": "2027-01-05",
-          "end_scan": "2027-04-05",
-          "last_day": "2027-06-28",
+          "start_scan": "2026-12-11",
+          "end_scan": "2027-03-12",
+          "last_day": "2027-08-27",
           "lastTradeDateOrContractMonth": "20270914"
         },
         "202709": {
@@ -11877,9 +11877,9 @@
           "conId": 385575841,
           "exchange": "CME",
           "contractMonth": "202709",
-          "start_scan": "2027-04-06",
-          "end_scan": "2027-07-06",
-          "last_day": "2027-09-28",
+          "start_scan": "2027-03-15",
+          "end_scan": "2027-06-11",
+          "last_day": "2027-11-26",
           "lastTradeDateOrContractMonth": "20271214"
         }
       }

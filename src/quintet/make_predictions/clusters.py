@@ -12,10 +12,8 @@ For each system with `N_CLUSTERS[s]` not None, the cluster step:
 4. Clusters those values with `whiten / kmeans / vq` (cell-31 verbatim,
    no seed). cluster 0 = weakest centroid.
 
-Returns a dict with today's labels per product. Nothing is persisted —
-no `_cluster` column on the per-product parquets, no `_clusters.parquet`
-sidecar. The labels are consumed in-process (e.g. by a future cluster
-filter on today's `prob`).
+Returns a dict with today's labels per product. The result is consumed
+in-process; nothing is written to disk.
 """
 
 from datetime import date as date_cls
@@ -98,6 +96,7 @@ class ClusterAssigner:
                 "n_products": 0,
                 "misaligned": [],
                 "skipped_reason": "no_observations",
+                "std": None,
                 "centroids_w": None,
                 "centroids_r": None,
                 "labels_by_product": None,
@@ -134,6 +133,7 @@ class ClusterAssigner:
             "n_products": n_products,
             "misaligned": misaligned,
             "skipped_reason": None,
+            "std": None,
             "centroids_w": None,
             "centroids_r": None,
             "labels_by_product": None,
@@ -167,6 +167,7 @@ class ClusterAssigner:
         sorted_centroids = np.sort(centroids)  # cluster 0 = weakest
         labels, _ = vq(w, sorted_centroids)
 
+        result["std"] = float(std)
         result["centroids_w"] = sorted_centroids.tolist()
         result["centroids_r"] = (sorted_centroids * std).tolist()
         result["labels_by_product"] = {p: int(l) for p, l in zip(products, labels)}

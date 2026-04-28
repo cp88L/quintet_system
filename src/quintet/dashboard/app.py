@@ -5,7 +5,8 @@ from pathlib import Path
 
 os.environ["PLOTLY_RENDERER"] = "browser"
 
-from dash import Dash, page_container
+import dash
+from dash import Dash, html, page_container
 import dash_bootstrap_components as dbc
 import plotly.io as pio
 
@@ -31,6 +32,38 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
 </html>"""
 
 
+def _build_navbar() -> dbc.Navbar:
+    pages = sorted(
+        (p for p in dash.page_registry.values() if p.get("path")),
+        key=lambda p: p.get("order", 99),
+    )
+    nav_items = [
+        dbc.NavItem(dbc.NavLink(p["name"], href=p["path"], active="exact"))
+        for p in pages
+    ]
+    return dbc.Navbar(
+        dbc.Container(
+            [
+                html.A(
+                    "Quintet Dashboard",
+                    href="/",
+                    style={
+                        "color": "#fff",
+                        "fontWeight": 600,
+                        "textDecoration": "none",
+                        "marginRight": "24px",
+                    },
+                ),
+                dbc.Nav(nav_items, navbar=True),
+            ],
+            fluid=True,
+        ),
+        color="dark",
+        dark=True,
+        className="mb-2",
+    )
+
+
 def create_app() -> Dash:
     pages_folder = Path(__file__).parent / "pages"
 
@@ -44,7 +77,7 @@ def create_app() -> Dash:
         index_string=_INDEX_TEMPLATE,
     )
 
-    app.layout = dbc.Container([page_container], fluid=True)
+    app.layout = dbc.Container([_build_navbar(), page_container], fluid=True)
 
     return app
 

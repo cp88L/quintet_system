@@ -81,6 +81,22 @@ class DataPaths:
         path.mkdir(parents=True, exist_ok=True)
         return path
 
+    def lookback_dir(self, system: str) -> Path:
+        """
+        Get the per-system tau-lookback directory, creating if needed.
+
+        Returns Path to processed/{system}/_lookback/. One parquet per
+        product holds the rolling 60-bar (timestamp, contract, OHLC, prob,
+        Label_{N}) pool used by the Wilson tau walkdown.
+        """
+        path = self.processed / system / "_lookback"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def tau_json_path(self, system: str) -> Path:
+        """Path to processed/{system}/_tau.json holding the per-system tau snapshot."""
+        return self.processed / system / "_tau.json"
+
     def ensure_dirs(self) -> None:
         """Create base raw/ and processed/ directories."""
         self.raw.mkdir(parents=True, exist_ok=True)

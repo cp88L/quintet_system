@@ -5,10 +5,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
 
+import numpy as np
 import pandas as pd
 
-from quintet.config import INDICATORS, SYSTEMS
+from quintet.config import INDICATORS, PRECISION, SYSTEM_LABEL, SYSTEMS
 from quintet.data.paths import DataPaths
+from quintet.tau.threshold import calculate_threshold
 
 
 @dataclass
@@ -204,3 +206,90 @@ def format_chart_title(symbol: str, contract: str) -> str:
     if month_name:
         return f"{long_name} - {contract} ({month_name})"
     return f"{long_name} - {contract}"
+
+
+# =============================================================================
+# Tau / lookback loaders
+# =============================================================================
+
+def load_tau_snapshot(system: str) -> dict:
+    """Read processed/{system}/_tau.json. Returns {} when the file is missing."""
+    path = _paths.tau_json_path(system)
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        return json.load(f)
+
+
+def list_lookback_products(system: str) -> list[str]:
+    """Sorted product list backed by parquet files under {system}/_lookback/."""
+    lookback_dir = _paths.lookback_dir(system)
+    if not lookback_dir.exists():
+        return []
+    return sorted(p.stem for p in lookback_dir.glob("*.parquet"))
+
+
+@lru_cache(maxsize=256)
+def load_lookback(system: str, product: str) -> pd.DataFrame:
+    """Load the per-system rolling 60-bar lookback for one product.
+
+    Schema on disk: timestamp, contract, open, high, low, close, prob,
+    Label_{N}. Returned frame is timestamp-indexed and column-normalized
+    (open→Open, etc.) so chart code can reuse the OHLC convention.
+    """
+    path = _paths.lookback_dir(system) / f"{product}.parquet"
+    if not path.exists():
+        raise FileNotFoundError(f"No lookback parquet for {system}/{product}")
+
+    df = pd.read_parquet(path)
+    if "timestamp" in df.columns:
+        df = df.set_index("timestamp")
+    return _normalize_columns(df)
+
+
+def compute_product_precision(system: str, product: str) -> dict | None:
+    """Per-product Wilson walkdown — the same logic that produces the
+    system-level snapshot, applied to one product's 60-bar pool.
+
+    Returns a dict with `tau, n, best_k, precision_at_k, wilson_lb_at_k,
+    n_tp, pos_rate, hit`. `hit` is True when the per-product walkdown
+    finds a valid k. Returns None if the product has no lookback or
+    the required Label column is missing.
+    """
+    label = SYSTEM_LABEL[system]
+    label_col = f"Label_{label}"
+    try:
+        df = load_lookback(system, product)
+    except FileNotFoundError:
+        return None
+    if label_col not in df.columns or "prob" not in df.columns:
+        return None
+
+    probs = df["prob"].to_numpy(dtype=float)
+    labels = df[label_col].to_numpy(dtype=float)
+    mask = ~(np.isnan(probs) | np.isnan(labels))
+    probs = probs[mask]
+    labels = labels[mask]
+
+    if len(probs) == 0:
+        return None
+
+    target = PRECISION[system]
+    tau, diag = calculate_threshold(probs, labels, target)
+
+    best_k = int(diag["best_k"])
+    n_tp = int(round(diag["precision_at_k"] * best_k)) if best_k else 0
+    pos_rate = float(labels.mean()) if len(labels) else 0.0
+    hit = not (isinstance(tau, float) and np.isnan(tau))
+
+    return {
+        "product": product,
+        "tau": float(tau) if hit else None,
+        "n": int(diag["n"]),
+        "best_k": best_k,
+        "n_tp": n_tp,
+        "precision_at_k": float(diag["precision_at_k"]) if hit else None,
+        "wilson_lb_at_k": float(diag["wilson_lb_at_k"]) if hit else None,
+        "pos_rate": pos_rate,
+        "hit": hit,
+    }
