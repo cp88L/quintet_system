@@ -1,5 +1,6 @@
 """Tau threshold and lookback construction for the quintet pipeline."""
 
+from quintet.tau.gate import evaluate_tau_gate
 from quintet.tau.threshold import (
     calculate_threshold,
     compute_system_tau,
@@ -9,5 +10,6 @@ from quintet.tau.threshold import (
 __all__ = [
     "calculate_threshold",
     "compute_system_tau",
+    "evaluate_tau_gate",
     "wilson_lower_bound",
 ]

@@ -23,6 +23,7 @@ Usage:
 """
 
 import argparse
+import math
 import sys
 from datetime import date
 
@@ -34,7 +35,7 @@ from quintet.contract_handler.update_contracts import update_all_contracts
 from quintet.data.paths import DataPaths
 from quintet.make_predictions import ClusterAssigner, ContractPredictor
 from quintet.process_contracts import ContractProcessor
-from quintet.tau import compute_system_tau
+from quintet.tau import compute_system_tau, evaluate_tau_gate
 
 
 def _build_active_locals(registry: ContractRegistry, today: date) -> set[str]:
@@ -129,29 +130,81 @@ def step_taus(
     today: date,
     registry: ContractRegistry,
     paths: DataPaths,
-) -> None:
+) -> dict[str, dict]:
     print("\n" + "=" * 60)
-    print("STEP 4: Tau")
+    print("STEP 4: Tau (Wilson walkdown, 60-bar lookback)")
     print("=" * 60)
+    out: dict[str, dict] = {}
     for system in SYSTEMS:
         result = compute_system_tau(system, today, registry, paths)
         target = PRECISION[system]
         n_pool = result["n_pool"]
         n_pos = result["n_positives"]
+        n_products = len(result["products"])
         ls = result.get("lookback_status", {})
-        lb_str = f"lookback cached={ls.get('cached',0)} rebuilt={ls.get('rebuilt',0)}"
-        if not result["gate_pass"]:
-            print(
-                f"  {system}: tau=NaN (no k meets target={target:.4f}); "
-                f"n_pool={n_pool}, positives={n_pos}, products={len(result['products'])}, {lb_str}"
-            )
-            continue
-        print(
-            f"  {system}: tau={result['tau']:.4f}, target={target:.4f}, "
-            f"n_pool={n_pool}, positives={n_pos}, "
-            f"best_k={result['best_k']}, prec@k={result['precision_at_k']:.4f}, "
-            f"wilson_lb@k={result['wilson_lb_at_k']:.4f}, {lb_str}"
+        cached = ls.get("cached", 0)
+        rebuilt = ls.get("rebuilt", 0)
+        base_rate = (n_pos / n_pool) if n_pool else float("nan")
+
+        passes, n_active = evaluate_tau_gate(
+            system, today, result["tau"], registry, paths
         )
+        out[system] = {"tau_result": result, "gate_passes": passes, "n_active": n_active}
+
+        if not result["gate_pass"]:
+            best_lb = result.get("best_lb_seen", float("nan"))
+            best_lb_k = result.get("best_lb_k", 0)
+            print(f"\n  {system} ✗ NO SIGNAL")
+            if n_pool:
+                print(
+                    f"      base rate   {n_pos} / {n_pool} = "
+                    f"{base_rate*100:.2f}% < target {target*100:.2f}%"
+                )
+            else:
+                print(f"      pool empty (no eligible products)")
+            if not (isinstance(best_lb, float) and math.isnan(best_lb)):
+                gap_pp = (best_lb - target) * 100
+                print(
+                    f"      best wilson-lb seen: {best_lb*100:.2f}% at k={best_lb_k}"
+                    f"   (gap {gap_pp:+.2f} pp)"
+                )
+            print(
+                f"      lookback    {n_products} products · "
+                f"{cached} cached, {rebuilt} rebuilt"
+            )
+            print(f"      passed      0 / {n_active} (tau NaN)")
+            continue
+
+        tau = result["tau"]
+        best_k = result["best_k"]
+        tp_at_k = result["tp_at_k"]
+        prec = result["precision_at_k"]
+        wlb = result["wilson_lb_at_k"]
+        lift_pp = (target - base_rate) * 100
+        top_k_n = result["top_k_n"]
+        top_k_tp = result["top_k_tp"]
+        top_k_prec = result["top_k_precision"]
+        depth_pct = best_k / n_pool * 100
+
+        print(f"\n  {system} ✓ PASS   →  fire on prob ≥ {tau:.4f}")
+        print(
+            f"      kept        {best_k} / {n_pool} rows  "
+            f"({depth_pct:.0f}%, max k)"
+        )
+        print(f"      precision   {tp_at_k} / {best_k} = {prec*100:.2f}%")
+        print(f"      wilson-lb   {wlb*100:.2f}%   target {target*100:.2f}%")
+        print(f"      model lift  {lift_pp:+.2f} pp  (target − base rate)")
+        print(
+            f"      top-{top_k_n}      {top_k_tp} / {top_k_n} = "
+            f"{top_k_prec*100:.1f}%"
+        )
+        print(f"      base rate   {n_pos} / {n_pool} = {base_rate*100:.2f}%")
+        print(
+            f"      lookback    {n_products} products · "
+            f"{cached} cached, {rebuilt} rebuilt"
+        )
+        print(f"      passed      {len(passes)} / {n_active}")
+    return out
 
 
 def main() -> int:

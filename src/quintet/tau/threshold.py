@@ -57,15 +57,29 @@ def calculate_threshold(
     labels: np.ndarray,
     target_precision: float,
     alpha: float = WILSON_ALPHA,
+    top_k: int = 50,
 ) -> tuple[float, dict]:
     """Find the deepest-k probability threshold whose Wilson LB meets target.
 
     Returns `(tau, diagnostics)`. `tau = NaN` if no k satisfies the bound.
     """
+    nan_diag = {
+        "n": 0,
+        "n_positives": 0,
+        "best_k": 0,
+        "tp_at_k": 0,
+        "precision_at_k": float("nan"),
+        "wilson_lb_at_k": float("nan"),
+        "best_lb_seen": float("nan"),
+        "best_lb_k": 0,
+        "top_k_n": 0,
+        "top_k_tp": 0,
+        "top_k_precision": float("nan"),
+    }
+
     n = len(probs)
     if n == 0:
-        return float("nan"), {"n": 0, "best_k": 0, "precision_at_k": float("nan"),
-                              "wilson_lb_at_k": float("nan")}
+        return float("nan"), nan_diag
 
     sorted_indices = np.argsort(probs)[::-1]
     y_sorted = np.asarray(labels)[sorted_indices]
@@ -74,17 +88,44 @@ def calculate_threshold(
     k = np.arange(1, n + 1, dtype=float)
 
     lower_bounds = wilson_lower_bound(k, tp_cumsum, alpha=alpha)
+
+    n_positives = int(tp_cumsum[-1])
+    best_lb_idx = int(np.argmax(lower_bounds))
+    best_lb_seen = float(lower_bounds[best_lb_idx])
+    best_lb_k = best_lb_idx + 1
+
+    top_k_eff = min(top_k, n)
+    top_k_tp = int(tp_cumsum[top_k_eff - 1])
+    top_k_precision = float(top_k_tp / top_k_eff)
+
+    common = {
+        "n": n,
+        "n_positives": n_positives,
+        "best_lb_seen": best_lb_seen,
+        "best_lb_k": best_lb_k,
+        "top_k_n": top_k_eff,
+        "top_k_tp": top_k_tp,
+        "top_k_precision": top_k_precision,
+    }
+
     valid = np.where(lower_bounds >= target_precision)[0]
     if len(valid) == 0:
-        return float("nan"), {"n": n, "best_k": 0, "precision_at_k": float("nan"),
-                              "wilson_lb_at_k": float("nan")}
+        return float("nan"), {
+            **common,
+            "best_k": 0,
+            "tp_at_k": 0,
+            "precision_at_k": float("nan"),
+            "wilson_lb_at_k": float("nan"),
+        }
 
     best_k = int(valid[-1] + 1)
     tau = float(probs[sorted_indices[best_k - 1]])
-    precision_at_k = float(tp_cumsum[best_k - 1] / best_k)
+    tp_at_k = int(tp_cumsum[best_k - 1])
+    precision_at_k = float(tp_at_k / best_k)
     return tau, {
-        "n": n,
+        **common,
         "best_k": best_k,
+        "tp_at_k": tp_at_k,
         "precision_at_k": precision_at_k,
         "wilson_lb_at_k": float(lower_bounds[best_k - 1]),
     }
@@ -142,8 +183,14 @@ def compute_system_tau(
             "n_positives": 0,
             "gate_pass": False,
             "best_k": 0,
+            "tp_at_k": 0,
             "precision_at_k": float("nan"),
             "wilson_lb_at_k": float("nan"),
+            "best_lb_seen": float("nan"),
+            "best_lb_k": 0,
+            "top_k_n": 0,
+            "top_k_tp": 0,
+            "top_k_precision": float("nan"),
             "products": [],
         }
         _save_tau_json(paths, system, result)
@@ -162,11 +209,17 @@ def compute_system_tau(
         **base,
         "tau": tau,
         "n_pool": diag["n"],
-        "n_positives": int(pool[:, 1].sum()),
+        "n_positives": diag["n_positives"],
         "gate_pass": not (isinstance(tau, float) and np.isnan(tau)),
         "best_k": diag["best_k"],
+        "tp_at_k": diag["tp_at_k"],
         "precision_at_k": diag["precision_at_k"],
         "wilson_lb_at_k": diag["wilson_lb_at_k"],
+        "best_lb_seen": diag["best_lb_seen"],
+        "best_lb_k": diag["best_lb_k"],
+        "top_k_n": diag["top_k_n"],
+        "top_k_tp": diag["top_k_tp"],
+        "top_k_precision": diag["top_k_precision"],
         "products": list(lookbacks.keys()),
     }
     _save_tau_json(paths, system, result)
