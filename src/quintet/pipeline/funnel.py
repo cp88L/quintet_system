@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Optional
 
 
 @dataclass
@@ -31,16 +30,16 @@ class ProductCandidate:
     con_id: int
 
     # Populated by BuildFunnelStage from the contract's processed parquet.
-    prob: Optional[float] = None
-    cluster_id: Optional[int] = None
-    res_n: Optional[float] = None
-    sup_n: Optional[float] = None
-    high: Optional[float] = None
+    prob: float | None = None
+    cluster_id: int | None = None
+    res_n: float | None = None
+    sup_n: float | None = None
+    high: float | None = None
 
     # Populated by the corresponding filter stage; None until that stage runs.
-    tau_pass: Optional[bool] = None
-    cluster_pass: Optional[bool] = None
-    breakout_pass: Optional[bool] = None
+    tau_pass: bool | None = None
+    cluster_pass: bool | None = None
+    breakout_pass: bool | None = None
 
     @property
     def actionable(self) -> bool:
@@ -75,7 +74,7 @@ class SystemFunnel:
     system: str
     today: date
     products: dict[str, ProductCandidate] = field(default_factory=dict)
-    tau: Optional[float] = None  # set by TauStage
+    tau: float | None = None  # set by TauStage
 
     @property
     def actionable_products(self) -> list[ProductCandidate]:

@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Optional
+from typing import Self
 
 from quintet.contract_handler.contract_registry import ContractRegistry
 from quintet.contract_handler.product_master import ProductMaster
@@ -31,14 +31,14 @@ class PipelineContext:
     predictor: ContractPredictor
     assigner: ClusterAssigner
 
-    scope: Optional[set[str]] = None  # active-today local symbols, or None for full year
-    asof: Optional[date] = None  # trim-today cutoff if set
+    scope: set[str] | None = None  # active-today local symbols, or None for full year
+    asof: date | None = None  # trim-today cutoff if set
 
     funnels: dict[str, SystemFunnel] = field(default_factory=dict)
     tau_results: dict[str, dict] = field(default_factory=dict)
 
     @classmethod
-    def build(cls, args: argparse.Namespace) -> "PipelineContext":
+    def build(cls, args: argparse.Namespace) -> Self:
         paths = DataPaths()
         registry = ContractRegistry(paths.contracts_json)
         registry.load()
