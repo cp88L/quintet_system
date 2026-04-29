@@ -97,6 +97,11 @@ class DataPaths:
         """Path to processed/{system}/_tau.json holding the per-system tau snapshot."""
         return self.processed / system / "_tau.json"
 
+    @property
+    def funnel_json(self) -> Path:
+        """Path to processed/_funnel.json — combined per-system funnel snapshot."""
+        return self.processed / "_funnel.json"
+
     def ensure_dirs(self) -> None:
         """Create base raw/ and processed/ directories."""
         self.raw.mkdir(parents=True, exist_ok=True)

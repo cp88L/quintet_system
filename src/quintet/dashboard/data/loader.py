@@ -184,6 +184,68 @@ def get_contract_dates(symbol: str, contract: str) -> ContractDates:
     return ContractDates(None, None, None)
 
 
+_funnel_data: dict | None = None
+
+
+def _load_funnel() -> dict:
+    """Load and cache `processed/_funnel.json` (per-run snapshot of all systems)."""
+    global _funnel_data
+    if _funnel_data is None:
+        path = _paths.funnel_json
+        if path.exists():
+            with open(path) as f:
+                _funnel_data = json.load(f)
+        else:
+            _funnel_data = {}
+    return _funnel_data
+
+
+def get_in_scan_for_system(system: str) -> list[dict]:
+    """Per-system in-scan contracts with gate state, ordered best-first.
+
+    Reads `processed/_funnel.json`. For each product in the system's universe
+    returns a dict: `symbol, contract, prob, cluster_id, tau_pass,
+    cluster_pass, breakout_pass, actionable`. Sort: actionable first, then
+    by number of gates passed, then by prob descending.
+    """
+    funnel = _load_funnel()
+    sys_data = funnel.get("systems", {}).get(system)
+    if not sys_data:
+        return []
+
+    out: list[dict] = []
+    for p in sys_data.get("products", []):
+        out.append(
+            {
+                "symbol": p.get("product"),
+                "contract": p.get("local_symbol"),
+                "prob": p.get("prob"),
+                "cluster_id": p.get("cluster_id"),
+                "tau_pass": bool(p.get("tau_pass", False)),
+                "cluster_pass": bool(p.get("cluster_pass", False)),
+                "breakout_pass": bool(p.get("breakout_pass", False)),
+                "actionable": bool(p.get("actionable", False)),
+            }
+        )
+
+    def _key(r: dict) -> tuple:
+        breakout_only = (
+            r["breakout_pass"] and not r["tau_pass"] and not r["cluster_pass"]
+        )
+        prob = r["prob"] if r["prob"] is not None else float("-inf")
+        # Order: actionable first, then cluster_pass (cluster supersedes prob),
+        # then by prob desc, with breakout-only items pushed to the very bottom.
+        return (not r["actionable"], not r["cluster_pass"], breakout_only, -prob)
+
+    out.sort(key=_key)
+    return out
+
+
+def get_funnel_summary(system: str) -> dict:
+    """Return the per-system funnel header (counts + tau)."""
+    return _load_funnel().get("systems", {}).get(system, {})
+
+
 def get_product_info(symbol: str) -> dict:
     data = _load_contracts_json()
     product_data = data.get("products", {}).get(symbol, {})
