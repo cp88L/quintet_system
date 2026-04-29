@@ -33,8 +33,8 @@ class BreakoutStage(PipelineStage):
 
             n_universe = len(funnel.products)
             n_breakout = funnel.count_passing("breakout")
-            n_actionable = len(funnel.actionable_products)
+            n_surviving = funnel.count_surviving_through("tau", "cluster", "breakout")
             print(
                 f"  {system}: breakout {n_breakout} / {n_universe}  →  "
-                f"actionable {n_actionable}"
+                f"surviving {n_surviving} (tau ∩ cluster ∩ breakout)"
             )

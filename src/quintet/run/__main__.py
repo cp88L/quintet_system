@@ -10,7 +10,8 @@ The pipeline is a fixed sequence of stages from
     4. Tau           — Wilson walkdown + per-product tau gate
     5. Clusters      — k-means cluster_id + INCLUDE_CLUSTERS gate
     6. Breakout      — high < Res_N gate
-    7. Snapshot      — write data/processed/_funnel.json
+    7. Positions     — dedupe by (con_id, system) against held positions
+    8. Snapshot      — write data/processed/_funnel.json
 
 Each stage is a `PipelineStage` subclass that owns its own print block
 and reads/writes `PipelineContext`. CLI flags map to per-stage

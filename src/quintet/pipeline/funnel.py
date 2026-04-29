@@ -40,6 +40,7 @@ class ProductCandidate:
     tau_pass: bool | None = None
     cluster_pass: bool | None = None
     breakout_pass: bool | None = None
+    position_pass: bool | None = None
 
     @property
     def actionable(self) -> bool:
@@ -48,6 +49,7 @@ class ProductCandidate:
             self.tau_pass is True
             and self.cluster_pass is True
             and self.breakout_pass is True
+            and self.position_pass is True
         )
 
     def to_dict(self) -> dict:
@@ -63,6 +65,7 @@ class ProductCandidate:
             "tau_pass": self.tau_pass,
             "cluster_pass": self.cluster_pass,
             "breakout_pass": self.breakout_pass,
+            "position_pass": self.position_pass,
             "actionable": self.actionable,
         }
 
@@ -82,9 +85,20 @@ class SystemFunnel:
 
     def count_passing(self, gate: str) -> int:
         """Count products where `<gate>_pass is True`. `gate` ∈
-        {tau, cluster, breakout}."""
+        {tau, cluster, breakout, position}."""
         attr = f"{gate}_pass"
         return sum(1 for p in self.products.values() if getattr(p, attr) is True)
+
+    def count_surviving_through(self, *gates: str) -> int:
+        """Count products where every named gate has produced `True`.
+        Useful for "running funnel size after this stage."
+        """
+        attrs = [f"{g}_pass" for g in gates]
+        return sum(
+            1
+            for p in self.products.values()
+            if all(getattr(p, a) is True for a in attrs)
+        )
 
     def to_dict(self) -> dict:
         return {
@@ -95,6 +109,7 @@ class SystemFunnel:
             "n_tau_pass": self.count_passing("tau"),
             "n_cluster_pass": self.count_passing("cluster"),
             "n_breakout_pass": self.count_passing("breakout"),
+            "n_position_pass": self.count_passing("position"),
             "n_actionable": len(self.actionable_products),
             "products": [p.to_dict() for p in self.products.values()],
         }
