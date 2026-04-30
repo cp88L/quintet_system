@@ -18,6 +18,7 @@ Rules for every slice:
 Add questions here instead of stopping unless continuing would risk orders, account safety, or signal/business-rule drift.
 
 - Live exit execution has unit coverage only. A true paper Gateway test requires deliberately opening and closing a filled position, which is possible but should be reviewed before making it part of the routine suite.
+- 2026-04-30 ad hoc paper validation opened one ES position and confirmed a protective stop could trigger and return the account to flat. This did not add a routine test.
 
 ## Completed Slices
 
@@ -65,4 +66,46 @@ Add questions here instead of stopping unless continuing would risk orders, acco
 
 ## Remaining Slices
 
-No remaining implementation slices.
+8. **Live roll order builder**
+   - Convert `RollEntryIntent` into concrete IBKR order requests.
+   - Reuse the same broker-neutral fields already present on `RollEntryIntent`; do not reach into signal/funnel objects from execution.
+   - Build a new-contract parent entry and protective stop as a bracket.
+   - Keep roll order construction in `broker/ibkr/orders.py`, not in trading logic.
+   - Remove `outsideRth` from futures orders unless explicitly reintroduced as configuration.
+   - Add unit tests for long equity roll bracket order construction.
+   - Commit when complete.
+
+9. **Live roll executor wiring**
+   - Teach `IbkrExecutor` to submit `RollEntryIntent` instead of reporting it only.
+   - Sequence same-run roll as: old-contract `ExitPositionIntent` market exit, then new-contract roll bracket submission.
+   - Preserve fail-fast behavior: if order construction or placement throws, record `roll_threw` and continue reporting the failure; do not silently fallback.
+   - Add execution-report status/count coverage for roll-submitted and roll-threw outcomes.
+   - Add executor tests proving roll intents place exactly two new-contract orders.
+   - Commit when complete.
+
+10. **Live roll planning integration check**
+   - Verify maintenance emits old-contract last-day exit before roll entry in the same `TradePlan`.
+   - Verify roll-enabled equity systems can roll, while commodity systems remain non-roll.
+   - Verify missing candidate, same-contract candidate, low RSpos, missing RSpos, and missing stop still alert without order placement.
+   - Commit when complete.
+
+11. **Paper Gateway roll validation**
+   - Start only from a clean paper state unless explicitly testing manual/outside state.
+   - Create or simulate one old-contract position in a controlled configured equity future.
+   - Run a trade plan containing the old-contract market exit and new-contract roll bracket.
+   - Confirm the old position is flat, the new bracket exists or fills as expected, and cleanup leaves `positions: 0` and `open orders: 0`.
+   - Record the tested contract, order ids, and cleanup result in this todo file.
+   - Commit when complete.
+
+12. **Operator/report polish for live rolls**
+   - Show live roll submissions separately in the CLI/dashboard counts.
+   - Include old contract, new contract, quantity, RSpos, threshold, and stop price in the execution report.
+   - Keep reported-only roll alerts visible for non-executed roll cases.
+   - Commit when complete.
+
+13. **Final full verification**
+   - Run the full local test suite.
+   - Run the forbidden hard-code/timeout grep.
+   - Run a final configured Gateway state check.
+   - Confirm unrelated dirty files were not included in commits.
+   - Commit any final documentation updates.
