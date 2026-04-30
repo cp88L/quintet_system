@@ -27,13 +27,13 @@ Add questions here instead of stopping unless continuing would risk orders, acco
    - Added unit tests for order building and executor dispatch.
    - Deferred filled-position paper Gateway coverage for review.
 
-## Remaining Slices
-
 2. **Last-day maintenance exits**
-   - Generate `ExitPositionIntent` for held positions at the configured last-day rule.
-   - Keep this in maintenance planning, not signal scanning.
-   - Add pure planner tests with fabricated broker state.
+   - Generate `ExitPositionIntent` for reconciled positions on/after known contract `last_day`.
+   - Alert instead of guessing when last-day metadata is missing.
+   - Keep exit planning in maintenance, separate from signal scanning.
    - Commit when complete.
+
+## Remaining Slices
 
 3. **Roll handling for equity flows**
    - Keep roll planning separate from normal entry scanning.

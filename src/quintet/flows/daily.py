@@ -5,7 +5,7 @@ from __future__ import annotations
 import pandas as pd
 
 from quintet.broker.ibkr.state import IbkrStateClient
-from quintet.broker.models import BrokerState
+from quintet.broker.models import BrokerState, ContractMeta
 from quintet.execution.dry_run import DryRunExecutor
 from quintet.execution.ibkr import IbkrExecutor
 from quintet.execution.models import ExecutionReport
@@ -22,7 +22,12 @@ from quintet.trading.signals import candidates_from_context
 def plan_trade_flow(ctx, broker_state: BrokerState) -> TradePlan:
     """Build the broker-neutral trade plan from current broker state."""
     reconciled = reconcile_state(broker_state)
-    maintenance = plan_maintenance(reconciled)
+    contract_meta = contract_meta_from_context(ctx, reconciled)
+    maintenance = plan_maintenance(
+        reconciled,
+        today=ctx.today,
+        contract_meta=contract_meta,
+    )
     signals = candidates_from_context(ctx)
     risk_state = risk_state_from_context(ctx, broker_state, reconciled)
     return build_trade_plan(
@@ -90,6 +95,29 @@ def risk_state_from_context(ctx, broker_state: BrokerState, reconciled) -> RiskS
         account_equity=broker_state.account.net_liquidation,
         positions=exposures,
     )
+
+
+def contract_meta_from_context(ctx, reconciled) -> dict[int, ContractMeta]:
+    """Build contract metadata for currently reconciled positions."""
+    meta: dict[int, ContractMeta] = {}
+    for position in reconciled.positions_by_key.values():
+        contract = ctx.registry.get_contract_by_con_id(position.con_id)
+        product = ctx.master.get_product(position.symbol)
+        if contract is None or product is None:
+            continue
+        meta[position.con_id] = ContractMeta(
+            con_id=position.con_id,
+            symbol=position.symbol,
+            local_symbol=position.local_symbol,
+            exchange=contract.exchange or product.exchange,
+            currency=product.currency,
+            multiplier=product.multiplier,
+            min_tick=product.min_tick,
+            price_magnifier=product.price_magnifier,
+            last_trade_date=contract.last_trade_date,
+            last_day=contract.scan_window.last_day,
+        )
+    return meta
 
 
 def _latest_processed_close(ctx, *, system: str, symbol: str, local_symbol: str) -> float:
