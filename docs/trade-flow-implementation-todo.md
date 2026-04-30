@@ -44,13 +44,13 @@ Add questions here instead of stopping unless continuing would risk orders, acco
    - Print the same count fields in the CLI summary that are written to `latest_execution_report.json`.
    - Add serialization/report tests.
 
-## Remaining Slices
-
 5. **Dashboard/report viewer**
-   - Surface latest trade plan and execution report in the dashboard.
-   - Make operator actions clear for alerts and reported-only intents.
-   - Avoid changing scanner/signal behavior.
-   - Commit when complete.
+   - Add a `/trade` dashboard page for latest trade plan and execution report JSON.
+   - Surface counts, alerts, reported-only roll entries, submitted/requested records, and skipped candidates.
+   - Add operator-action text for alerts and deferred roll entries.
+   - Add dashboard registration and report-loader tests.
+
+## Remaining Slices
 
 6. **End-to-end broker-state scenario tests**
    - Cover stale entry cancel.

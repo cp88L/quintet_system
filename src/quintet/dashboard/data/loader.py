@@ -309,6 +309,23 @@ def load_lookback(system: str, product: str) -> pd.DataFrame:
     return _normalize_columns(df)
 
 
+def load_latest_trade_plan() -> dict:
+    """Read the latest broker-neutral trade plan report."""
+    return _load_json(_paths.base / "reports" / "latest_trade_plan.json")
+
+
+def load_latest_execution_report() -> dict:
+    """Read the latest execution report."""
+    return _load_json(_paths.base / "reports" / "latest_execution_report.json")
+
+
+def _load_json(path) -> dict:
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        return json.load(f)
+
+
 def compute_product_precision(system: str, product: str) -> dict | None:
     """Per-product Wilson walkdown — the same logic that produces the
     system-level snapshot, applied to one product's 60-bar pool.
