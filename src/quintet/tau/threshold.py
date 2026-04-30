@@ -168,8 +168,15 @@ def compute_system_tau(
     label = SYSTEM_LABEL[system]
     label_col = f"Label_{label}"
 
+    missing_processed: list[str] = []
     lookbacks, status_counts = refresh_system_lookback(
-        system, today, registry, paths, target_bars, force=force
+        system,
+        today,
+        registry,
+        paths,
+        target_bars,
+        force=force,
+        missing_processed=missing_processed,
     )
 
     base = {
@@ -177,6 +184,7 @@ def compute_system_tau(
         "today": str(today),
         "target": PRECISION[system],
         "lookback_status": status_counts,
+        "lookback_missing_processed": missing_processed,
     }
 
     if not lookbacks:

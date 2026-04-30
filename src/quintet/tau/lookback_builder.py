@@ -85,6 +85,7 @@ def build_product_lookback(
     registry: ContractRegistry,
     paths: DataPaths,
     target_bars: int = LOOKBACK_WINDOW,
+    missing_processed: list[str] | None = None,
 ) -> pd.DataFrame:
     """Build the per-product rotating lookback DataFrame for one system.
 
@@ -115,10 +116,13 @@ def build_product_lookback(
 
         parquet_path = product_dir / f"{contract.local_symbol}.parquet"
         if not parquet_path.exists():
-            print(
-                f"  [lookback] {system}/{product}/{contract.local_symbol}: "
-                f"processed parquet missing — skipping"
-            )
+            if missing_processed is None:
+                print(
+                    f"  [lookback] {system}/{product}/{contract.local_symbol}: "
+                    f"processed parquet missing — skipping"
+                )
+            else:
+                missing_processed.append(f"{product}/{contract.local_symbol}")
             continue
 
         scan_df = _load_and_finalize(parquet_path, label, side, contract)
@@ -146,6 +150,7 @@ def build_system_lookback(
     registry: ContractRegistry,
     paths: DataPaths,
     target_bars: int = LOOKBACK_WINDOW,
+    missing_processed: list[str] | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Build per-product rotating lookback DataFrames for every product in `system`.
 
@@ -161,7 +166,13 @@ def build_system_lookback(
     for product_dir in sorted(p for p in system_dir.iterdir() if p.is_dir()):
         product = product_dir.name
         df = build_product_lookback(
-            system, product, today, registry, paths, target_bars
+            system,
+            product,
+            today,
+            registry,
+            paths,
+            target_bars,
+            missing_processed=missing_processed,
         )
         if not df.empty:
             out[product] = df
@@ -224,6 +235,7 @@ def refresh_product_lookback(
     paths: DataPaths,
     target_bars: int = LOOKBACK_WINDOW,
     force: bool = False,
+    missing_processed: list[str] | None = None,
 ) -> tuple[pd.DataFrame, str]:
     """Build-or-load the per-product lookback and persist it on rebuild.
 
@@ -245,7 +257,15 @@ def refresh_product_lookback(
     if not force and not rebuild:
         return pd.read_parquet(lookback_path), "cached"
 
-    df = build_product_lookback(system, product, today, registry, paths, target_bars)
+    df = build_product_lookback(
+        system,
+        product,
+        today,
+        registry,
+        paths,
+        target_bars,
+        missing_processed=missing_processed,
+    )
     if df.empty:
         return df, "no_eligible"
 
@@ -262,6 +282,7 @@ def refresh_system_lookback(
     paths: DataPaths,
     target_bars: int = LOOKBACK_WINDOW,
     force: bool = False,
+    missing_processed: list[str] | None = None,
 ) -> tuple[dict[str, pd.DataFrame], dict[str, int]]:
     """Refresh per-product lookbacks for all products in `system`.
 
@@ -279,7 +300,14 @@ def refresh_system_lookback(
     ):
         product = product_dir.name
         df, status = refresh_product_lookback(
-            system, product, today, registry, paths, target_bars, force=force
+            system,
+            product,
+            today,
+            registry,
+            paths,
+            target_bars,
+            force=force,
+            missing_processed=missing_processed,
         )
         counts[status] = counts.get(status, 0) + 1
         if not df.empty:
@@ -293,11 +321,18 @@ def refresh_all_lookbacks(
     paths: DataPaths,
     target_bars: int = LOOKBACK_WINDOW,
     force: bool = False,
+    missing_processed: list[str] | None = None,
 ) -> dict[str, tuple[dict[str, pd.DataFrame], dict[str, int]]]:
     """Refresh `_lookback/*.parquet` across every system. {system: (lookbacks, counts)}."""
     return {
         system: refresh_system_lookback(
-            system, today, registry, paths, target_bars, force=force
+            system,
+            today,
+            registry,
+            paths,
+            target_bars,
+            force=force,
+            missing_processed=missing_processed,
         )
         for system in SYSTEMS
     }

@@ -42,6 +42,8 @@ class TauStage(PipelineStage):
         ls = result.get("lookback_status", {})
         cached = ls.get("cached", 0)
         rebuilt = ls.get("rebuilt", 0)
+        no_eligible = ls.get("no_eligible", 0)
+        missing_processed = result.get("lookback_missing_processed", [])
         base_rate = (n_pos / n_pool) if n_pool else float("nan")
 
         funnel = ctx.funnels.get(system)
@@ -75,7 +77,12 @@ class TauStage(PipelineStage):
                     f"      best wilson-lb seen: {best_lb*100:.2f}% at k={best_lb_k}"
                     f"   (gap {gap_pp:+.2f} pp)"
                 )
-            print(f"      lookback    {n_products} products · {cached} cached, {rebuilt} rebuilt")
+            print(
+                f"      lookback    {n_products} products · {cached} cached, "
+                f"{rebuilt} rebuilt, {no_eligible} without eligible history"
+            )
+            if missing_processed:
+                print(_missing_processed_summary(missing_processed))
             print(f"      passed      0 / {n_universe} (tau NaN)")
             return
 
@@ -96,5 +103,20 @@ class TauStage(PipelineStage):
         print(f"      model lift  {lift_pp:+.2f} pp  (target − base rate)")
         print(f"      top-{top_k_n}      {top_k_tp} / {top_k_n} = {top_k_prec*100:.1f}%")
         print(f"      base rate   {n_pos} / {n_pool} = {base_rate*100:.2f}%")
-        print(f"      lookback    {n_products} products · {cached} cached, {rebuilt} rebuilt")
+        print(
+            f"      lookback    {n_products} products · {cached} cached, "
+            f"{rebuilt} rebuilt, {no_eligible} without eligible history"
+        )
+        if missing_processed:
+            print(_missing_processed_summary(missing_processed))
         print(f"      passed      {n_passed} / {n_universe}")
+
+
+def _missing_processed_summary(missing_processed: list[str]) -> str:
+    examples = ", ".join(missing_processed[:5])
+    if len(missing_processed) > 5:
+        examples = f"{examples}, ..."
+    return (
+        f"      missing     {len(missing_processed)} historical parquet(s) unavailable"
+        f"  ({examples})"
+    )
