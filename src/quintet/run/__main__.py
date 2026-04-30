@@ -42,6 +42,7 @@ from quintet.contract_handler.contract_registry import ContractRegistry
 from quintet.flows.daily import run_trade_dry_run, run_trade_live
 from quintet.pipeline.context import PipelineContext
 from quintet.pipeline.stages import PIPELINE
+from quintet.run.console import print_trade_report
 
 
 def _build_active_locals(registry: ContractRegistry, today: date) -> set[str]:
@@ -155,31 +156,13 @@ def main() -> int:
 
             broker_state = IbkrBrokerGateway().collect_state()
             plan, report = run_trade_dry_run(ctx, broker_state=broker_state)
-        print(
-            f"  broker state: equity={broker_state.account.net_liquidation:.2f} "
-            f"positions={len(broker_state.positions)} "
-            f"open_orders={len(broker_state.open_orders)}"
-        )
-        n_place = sum(
-            1 for i in plan.intents if i.__class__.__name__ == "PlaceBracketIntent"
-        )
         report_dir = ctx.paths.base / "reports"
-        print(f"  signals: {len(plan.signals)}")
-        print(f"  intents: {len(plan.intents)}")
-        print(f"  place brackets: {n_place}")
-        print(f"  skipped: {len(plan.skipped)}")
-        print(f"  report mode: {report.mode}")
-        print(f"  submitted: {report.counts.submitted}")
-        print(f"  roll submitted: {report.counts.roll_submitted}")
-        print(f"  cancel requested: {report.counts.cancel_requested}")
-        print(f"  modified: {report.counts.modified}")
-        print(f"  reported only: {report.counts.reported_only}")
-        print(f"  alerts: {report.counts.alerts}")
-        print(f"  threw: {report.counts.threw}")
-        if report.counts.dry_run:
-            print(f"  dry run actions: {report.counts.dry_run}")
-        print(f"  wrote {report_dir / 'latest_trade_plan.json'}")
-        print(f"  wrote {report_dir / 'latest_execution_report.json'}")
+        print_trade_report(
+            broker_state=broker_state,
+            plan=plan,
+            report=report,
+            report_dir=report_dir,
+        )
 
     return 0
 
