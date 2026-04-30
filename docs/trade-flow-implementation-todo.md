@@ -77,7 +77,7 @@ Add questions here instead of stopping unless continuing would risk orders, acco
    - Added executor tests proving the expected old-contract OCA orders and new-contract bracket orders are placed.
 
 10. **Live roll planning integration check**
-   - Maintenance now emits a single `LastDayCloseoutIntent` bundle on `today >= last_day`.
+   - Maintenance now emits a single `LastDayCloseoutIntent` bundle when the broker calendar says `next_rth_day >= last_day`.
    - The bundle includes current protective stop id, type, prices, and deterministic OCA group.
    - Roll-enabled equity systems attach qualifying next-contract roll entries to that bundle.
    - Commodity systems keep closeout-only behavior.
@@ -106,6 +106,14 @@ Add questions here instead of stopping unless continuing would risk orders, acco
    - Gateway ended clean: `positions=0`, `open_orders=0`.
    - Broker messages were informational IBKR farm/status messages only.
    - Confirmed unrelated dirty files were not staged or committed.
+
+14. **Calendar-driven last-day roll trigger**
+   - Copied Quartet's IBKR `liquidHours` calendar concept into the Quintet broker adapter.
+   - `BrokerState` now carries broker-neutral `next_rth_days` keyed by `con_id`.
+   - Maintenance now compares `next_rth_day >= last_day`, so the EOD/break run before `last_day` can stage the RTH-open closeout and optional roll.
+   - Missing broker calendar data produces a report-only `missing_next_rth_day` alert instead of guessing from the wall-clock date.
+   - Read-only configured Gateway check confirmed active `ESM6` calendar parsing through `127.0.0.1:4002`, `client_id=0`.
+   - Full local suite passed `60` tests.
 
 ## Remaining Slices
 

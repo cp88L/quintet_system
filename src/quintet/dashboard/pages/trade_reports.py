@@ -320,6 +320,7 @@ def _alert_action(alert: dict) -> str:
     actions = {
         "external_or_unclassified_order": "Review outside order; no action sent.",
         "missing_last_day_metadata": "Fix contract metadata before relying on exits.",
+        "missing_next_rth_day": "Review IBKR calendar data before relying on exits.",
         "missing_protective_stop": "Verify or place the protective stop manually.",
         "roll_candidate_missing": "Review current-contract funnel data.",
         "roll_contract_not_advanced": "Wait for the active contract to advance.",

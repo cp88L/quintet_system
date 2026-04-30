@@ -146,4 +146,5 @@ class BrokerState:
     open_orders: list[BrokerOrder] = field(default_factory=list)
     recent_fills: list[BrokerFill] = field(default_factory=list)
     recent_errors: list[BrokerError] = field(default_factory=list)
+    next_rth_days: dict[int, date] = field(default_factory=dict)
     contract_meta: dict[int, ContractMeta] = field(default_factory=dict)

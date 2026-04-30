@@ -29,6 +29,7 @@ def plan_trade_flow(ctx, broker_state: BrokerState) -> TradePlan:
         reconciled,
         today=ctx.today,
         contract_meta=contract_meta,
+        next_rth_days=broker_state.next_rth_days,
     )
     maintenance_intents = plan_roll_entries(
         maintenance.intents,

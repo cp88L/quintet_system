@@ -306,7 +306,7 @@ MaintenancePlan
 Intents produced here do not depend on today's signals:
 
 ```text
-ExitPositionIntent           # last_day exit + (conditional) roll-entry bundle
+LastDayCloseoutIntent        # last_day exit + (conditional) roll-entry bundle
 CancelOrphanedStopIntent     # stops with no parent and no held position
 AlertMissingStopIntent       # report-only; never autocreates a stop in v1
 NoopIntent
@@ -315,18 +315,23 @@ NoopIntent
 Required checks:
 
 ```text
-Is any contract at or beyond its final allowed trading day?
+Is any held contract's next RTH trading day at or beyond its final allowed trading day?
 Are there orphaned protective stops?
 Does every open position have a protective stop? (alert only)
 ```
 
 #### Last-day exit + conditional roll
 
-When a held contract reaches `today >= last_day`, the maintenance planner
-produces a single `ExitPositionIntent` describing the close-and-roll bundle:
+The IBKR adapter reads each held contract's `liquidHours`, parses the next
+regular trading session date, and stores only that broker-neutral
+`next_rth_day` in `BrokerState`. When `next_rth_day >= last_day`, the
+maintenance planner produces a single `LastDayCloseoutIntent` describing the
+close-and-roll bundle. This matches Quartet's day-before placement behavior:
+an EOD/break run before `last_day` can stage the RTH open closeout while the
+replacement stop remains live in extended hours.
 
 ```text
-ExitPositionIntent
+LastDayCloseoutIntent
   key: (con_id, system)
   side
   symbol
@@ -725,7 +730,8 @@ Deliver:
 
 ```text
 last-day exit + conditional roll bundle (Quartet replace-stop OCA pattern,
-  MKT outsideRth=False exit, parent/child new-entry)
+  next_rth_day >= last_day trigger, MKT outsideRth=False exit,
+  parent/child new-entry)
 orphaned-stop cancellation intents
 missing-stop alerts
 unclassified-order alerts
@@ -1111,7 +1117,7 @@ unknown attribution does not block any system's planning
 Implement pure planning:
 
 ```text
-ExitPositionIntent (last_day exit + conditional roll bundle)
+LastDayCloseoutIntent (last_day exit + conditional roll bundle)
 ModifyPositionStopIntent (trail to current Sup_N/Res_N, tick-rounded)
 CancelStaleEntryIntent (signal disappeared)
 ModifyEntryIntent / ModifyPendingStopIntent (tick-rounded)
@@ -1198,8 +1204,9 @@ These are intentionally outside the first version.
    `(con_id, system)`, attributed via `orderRef = VOICE_MAP[system]`.
 7. Trail-stop policy is "always re-align to current `Sup_N`/`Res_N`,"
    gated by tick-rounded value change.
-8. On `last_day` every held contract is exited at RTH open. Equities roll
-   conditionally on `ROLL_ENABLED[s]` and `RSpos_N`. Commodities never roll.
+8. When a held contract's next RTH trading day is on or beyond `last_day`,
+   the EOD/break run stages the RTH-open closeout. Equities roll conditionally
+   on `ROLL_ENABLED[s]` and `RSpos_N`. Commodities never roll.
 9. Order mechanics for the close-and-roll use Quartet's replace-stop OCA
    pattern: cancel the existing stop, place a replacement stop with
    `transmit=False`, then place the `MKT outsideRth=False` exit with

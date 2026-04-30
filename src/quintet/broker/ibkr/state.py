@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from ibapi.client import EClient
 from ibapi.common import OrderId
@@ -13,6 +13,7 @@ from ibapi.order_state import OrderState
 from ibapi.wrapper import EWrapper
 
 from quintet import config
+from quintet.broker.ibkr.calendar import parse_next_rth_day
 from quintet.broker.ibkr.mapper import (
     map_account_summary,
     map_open_order,
@@ -38,14 +39,17 @@ class IbkrStateClient(EWrapper, EClient):
         self._positions_end = threading.Event()
         self._orders_end = threading.Event()
         self._account_summary_end = threading.Event()
+        self._contract_details_end = threading.Event()
         self._reader_thread: threading.Thread | None = None
         self._lock = threading.Lock()
         self._connection_closed = False
         self._next_order_id: int | None = None
+        self._contract_details_req_id = 8000
 
         self._positions: list[BrokerPosition] = []
         self._open_orders: dict[int, BrokerOrder] = {}
         self._account_summary_rows: list[dict[str, str]] = []
+        self._contract_details: dict[int, object] = {}
         self._errors: list[BrokerError] = []
 
     def connect_and_run(self) -> None:
@@ -88,6 +92,7 @@ class IbkrStateClient(EWrapper, EClient):
         self._positions_end.set()
         self._orders_end.set()
         self._account_summary_end.set()
+        self._contract_details_end.set()
 
     def error(
         self,
@@ -141,6 +146,13 @@ class IbkrStateClient(EWrapper, EClient):
 
     def openOrderEnd(self) -> None:
         self._orders_end.set()
+
+    def contractDetails(self, reqId: int, contractDetails) -> None:
+        with self._lock:
+            self._contract_details[int(reqId)] = contractDetails
+
+    def contractDetailsEnd(self, reqId: int) -> None:
+        self._contract_details_end.set()
 
     def accountSummary(
         self,
@@ -199,12 +211,14 @@ class IbkrStateClient(EWrapper, EClient):
         account = self.get_account_state()
         positions = self.get_positions()
         open_orders = self.get_open_orders()
+        next_rth_days = self.get_next_rth_days({p.con_id for p in positions})
         errors = self.errors_snapshot()
         return BrokerState(
             collected_at=datetime.now(tz=timezone.utc),
             account=account,
             positions=positions,
             open_orders=open_orders,
+            next_rth_days=next_rth_days,
             recent_errors=errors,
         )
 
@@ -228,6 +242,40 @@ class IbkrStateClient(EWrapper, EClient):
             order_id = self._next_order_id
             self._next_order_id += 1
             return order_id
+
+    def get_next_rth_days(self, con_ids: set[int]) -> dict[int, date]:
+        """Fetch each current position contract's next RTH session date."""
+        next_days: dict[int, date] = {}
+        for con_id in sorted(con_ids):
+            next_day = self.get_next_rth_day(con_id)
+            if next_day is not None:
+                next_days[con_id] = next_day
+        return next_days
+
+    def get_next_rth_day(self, con_id: int) -> date | None:
+        """Fetch and parse the next RTH session date for one contract."""
+        req_id = self._next_contract_details_req_id()
+        contract = Contract()
+        contract.conId = con_id
+
+        self._contract_details_end.clear()
+        with self._lock:
+            self._contract_details.pop(req_id, None)
+        self.reqContractDetails(req_id, contract)
+        self._contract_details_end.wait()
+        self._raise_if_closed("contract details")
+
+        with self._lock:
+            details = self._contract_details.pop(req_id, None)
+        if details is None:
+            return None
+        return parse_next_rth_day(getattr(details, "liquidHours", "") or "")
+
+    def _next_contract_details_req_id(self) -> int:
+        with self._lock:
+            req_id = self._contract_details_req_id
+            self._contract_details_req_id += 1
+            return req_id
 
     def place_order(self, order_id: int, contract: Contract, order: Order) -> None:
         """Submit an order to IBKR."""

@@ -21,12 +21,14 @@ def plan_maintenance(
     *,
     today: date | None = None,
     contract_meta: Mapping[int, ContractMeta] | None = None,
+    next_rth_days: Mapping[int, date] | None = None,
 ) -> MaintenancePlan:
     """Plan simple report/cancel intents that do not depend on today's signal."""
     intents: list[object] = []
     contract_meta = contract_meta or {}
+    next_rth_days = next_rth_days or {}
     for key, position in state.positions_by_key.items():
-        if today is None:
+        if today is None and not next_rth_days:
             continue
         meta = contract_meta.get(position.con_id)
         if meta is None or meta.last_day is None:
@@ -44,7 +46,24 @@ def plan_maintenance(
                 )
             )
             continue
-        if today >= meta.last_day:
+        next_rth_day = next_rth_days.get(position.con_id)
+        if next_rth_day is None:
+            intents.append(
+                AlertIntent(
+                    code="missing_next_rth_day",
+                    message=(
+                        f"{position.local_symbol} has no broker calendar "
+                        "next-RTH day for last-day closeout planning. "
+                        "No order was sent."
+                    ),
+                    key=key,
+                    operator_action=(
+                        "Review broker calendar data before relying on last-day exits."
+                    ),
+                )
+            )
+            continue
+        if next_rth_day >= meta.last_day:
             stop = state.protective_stops_by_key.get(key)
             if stop is None or stop.aux_price is None:
                 intents.append(
@@ -93,7 +112,9 @@ def plan_maintenance(
                         aux_price=stop.aux_price,
                         limit_price=stop.limit_price,
                     ),
-                    oca_group=f"ROLL_{position.con_id}_{key[1]}_{today:%Y%m%d}",
+                    oca_group=(
+                        f"ROLL_{position.con_id}_{key[1]}_{next_rth_day:%Y%m%d}"
+                    ),
                     reason="last_day",
                 )
             )

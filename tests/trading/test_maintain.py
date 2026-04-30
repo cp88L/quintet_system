@@ -50,7 +50,7 @@ def _meta(*, last_day: date | None) -> ContractMeta:
 
 
 class MaintenanceTests(TestCase):
-    def test_last_day_position_generates_exit_intent(self) -> None:
+    def test_next_rth_on_last_day_generates_exit_intent_day_before(self) -> None:
         state = ReconciledTradeState(
             positions_by_key={(100, "E4"): _position()},
             protective_stops_by_key={(100, "E4"): _stop()},
@@ -58,8 +58,9 @@ class MaintenanceTests(TestCase):
 
         plan = plan_maintenance(
             state,
-            today=date(2026, 6, 19),
+            today=date(2026, 6, 18),
             contract_meta={100: _meta(last_day=date(2026, 6, 19))},
+            next_rth_days={100: date(2026, 6, 19)},
         )
 
         self.assertEqual(len(plan.intents), 1)
@@ -73,7 +74,36 @@ class MaintenanceTests(TestCase):
         self.assertEqual(intent.protective_stop.aux_price, 95.0)
         self.assertEqual(intent.oca_group, "ROLL_100_E4_20260619")
 
-    def test_before_last_day_does_not_exit(self) -> None:
+    def test_next_rth_before_last_day_does_not_exit(self) -> None:
+        state = ReconciledTradeState(
+            positions_by_key={(100, "E4"): _position()},
+            protective_stops_by_key={(100, "E4"): _stop()},
+        )
+
+        plan = plan_maintenance(
+            state,
+            today=date(2026, 6, 18),
+            contract_meta={100: _meta(last_day=date(2026, 6, 19))},
+            next_rth_days={100: date(2026, 6, 18)},
+        )
+
+        self.assertEqual(plan.intents, [])
+
+    def test_missing_last_day_metadata_alerts_instead_of_guessing(self) -> None:
+        state = ReconciledTradeState(positions_by_key={(100, "E4"): _position()})
+
+        plan = plan_maintenance(
+            state,
+            today=date(2026, 6, 18),
+            next_rth_days={100: date(2026, 6, 19)},
+        )
+
+        self.assertEqual(len(plan.intents), 1)
+        alert = plan.intents[0]
+        self.assertIsInstance(alert, AlertIntent)
+        self.assertEqual(alert.code, "missing_last_day_metadata")
+
+    def test_missing_next_rth_day_alerts_instead_of_guessing(self) -> None:
         state = ReconciledTradeState(
             positions_by_key={(100, "E4"): _position()},
             protective_stops_by_key={(100, "E4"): _stop()},
@@ -85,14 +115,7 @@ class MaintenanceTests(TestCase):
             contract_meta={100: _meta(last_day=date(2026, 6, 19))},
         )
 
-        self.assertEqual(plan.intents, [])
-
-    def test_missing_last_day_metadata_alerts_instead_of_guessing(self) -> None:
-        state = ReconciledTradeState(positions_by_key={(100, "E4"): _position()})
-
-        plan = plan_maintenance(state, today=date(2026, 6, 19))
-
         self.assertEqual(len(plan.intents), 1)
         alert = plan.intents[0]
         self.assertIsInstance(alert, AlertIntent)
-        self.assertEqual(alert.code, "missing_last_day_metadata")
+        self.assertEqual(alert.code, "missing_next_rth_day")
