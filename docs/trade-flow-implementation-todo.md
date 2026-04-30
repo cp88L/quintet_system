@@ -99,11 +99,14 @@ Add questions here instead of stopping unless continuing would risk orders, acco
    - Dashboard submitted rows now render closeout/roll order ids and roll summary details.
    - Reported-only roll rows no longer say live roll placement is deferred.
 
+13. **Final full verification**
+   - Ran the full local test suite: `python -m unittest` passed `57` tests.
+   - Ran the scoped forbidden hard-code/timeout grep across trade-flow, broker, execution, run, and tests paths; no matches outside the real config file.
+   - Ran a final configured Gateway state check through `IbkrBrokerGateway` using `127.0.0.1:4002` and `client_id=0`.
+   - Gateway ended clean: `positions=0`, `open_orders=0`.
+   - Broker messages were informational IBKR farm/status messages only.
+   - Confirmed unrelated dirty files were not staged or committed.
+
 ## Remaining Slices
 
-13. **Final full verification**
-   - Run the full local test suite.
-   - Run the forbidden hard-code/timeout grep.
-   - Run a final configured Gateway state check.
-   - Confirm unrelated dirty files were not included in commits.
-   - Commit any final documentation updates.
+- None.
