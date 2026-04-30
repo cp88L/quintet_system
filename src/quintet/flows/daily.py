@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from quintet.config import SYSTEM_SIDE
 from quintet.broker.ibkr.state import IbkrStateClient
 from quintet.broker.models import BrokerState, ContractMeta
 from quintet.execution.dry_run import DryRunExecutor
@@ -12,10 +13,11 @@ from quintet.execution.models import ExecutionReport
 from quintet.state.stores import ReportStore
 from quintet.trading.exposure import RiskMetadata, build_risk_exposures
 from quintet.trading.maintain import plan_maintenance
-from quintet.trading.models import RiskState, TradePlan
+from quintet.trading.models import MaintenancePlan, RiskState, Side, TradePlan
 from quintet.trading.planner import build_trade_plan
 from quintet.trading.reconcile import reconcile_state
 from quintet.trading.risk import build_risk_state
+from quintet.trading.roll import RollCandidate, plan_roll_entries
 from quintet.trading.signals import candidates_from_context
 
 
@@ -28,6 +30,15 @@ def plan_trade_flow(ctx, broker_state: BrokerState) -> TradePlan:
         today=ctx.today,
         contract_meta=contract_meta,
     )
+    roll_intents = plan_roll_entries(
+        maintenance.intents,
+        roll_candidates_from_context(ctx),
+    )
+    if roll_intents:
+        maintenance = MaintenancePlan(
+            generated_at=maintenance.generated_at,
+            intents=[*maintenance.intents, *roll_intents],
+        )
     signals = candidates_from_context(ctx)
     risk_state = risk_state_from_context(ctx, broker_state, reconciled)
     return build_trade_plan(
@@ -118,6 +129,35 @@ def contract_meta_from_context(ctx, reconciled) -> dict[int, ContractMeta]:
             last_day=contract.scan_window.last_day,
         )
     return meta
+
+
+def roll_candidates_from_context(ctx) -> dict[tuple[str, str], RollCandidate]:
+    """Build current-contract roll candidates from in-memory funnel data."""
+    candidates: dict[tuple[str, str], RollCandidate] = {}
+    for system, funnel in ctx.funnels.items():
+        for symbol, product_candidate in funnel.products.items():
+            product = ctx.master.get_product(symbol)
+            contract = ctx.registry.get_contract_by_con_id(product_candidate.con_id)
+            if product is None or contract is None:
+                continue
+            side = Side.from_config(SYSTEM_SIDE[system])
+            stop_price = (
+                product_candidate.sup_n
+                if side is Side.LONG
+                else product_candidate.res_n
+            )
+            candidates[(system, symbol)] = RollCandidate(
+                system=system,
+                side=side,
+                symbol=symbol,
+                local_symbol=product_candidate.local_symbol,
+                con_id=product_candidate.con_id,
+                exchange=contract.exchange or product.exchange,
+                currency=product.currency,
+                rspos=product_candidate.rspos_n,
+                stop_price=stop_price,
+            )
+    return candidates
 
 
 def _latest_processed_close(ctx, *, system: str, symbol: str, local_symbol: str) -> float:

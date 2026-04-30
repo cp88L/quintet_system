@@ -33,13 +33,13 @@ Add questions here instead of stopping unless continuing would risk orders, acco
    - Keep exit planning in maintenance, separate from signal scanning.
    - Commit when complete.
 
-## Remaining Slices
-
 3. **Roll handling for equity flows**
-   - Keep roll planning separate from normal entry scanning.
-   - Start with planner/report output before adding live execution.
-   - Add tests for roll-eligible vs. not-yet-eligible positions.
-   - Commit when complete.
+   - Add planner/report-only `RollEntryIntent`.
+   - Generate roll-entry reports only for roll-enabled systems when current-contract `RSpos` meets the configured threshold.
+   - Report missing, not-yet-advanced, below-threshold, or missing-stop roll state as alerts.
+   - Keep live roll execution deferred.
+
+## Remaining Slices
 
 4. **Execution reporting cleanup**
    - Report submitted, cancel-requested, modified, reported-only, alerts, and threw counts separately.

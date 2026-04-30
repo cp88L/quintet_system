@@ -10,6 +10,7 @@ from quintet.execution.models import (
     ExitPositionIntent,
     ModifyOrderIntent,
     PlaceBracketIntent,
+    RollEntryIntent,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "ExitPositionIntent",
     "ModifyOrderIntent",
     "PlaceBracketIntent",
+    "RollEntryIntent",
 ]

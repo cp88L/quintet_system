@@ -87,6 +87,27 @@ class ExitPositionIntent:
 
 
 @dataclass(frozen=True)
+class RollEntryIntent:
+    """Report-only intent describing a conditional roll entry."""
+
+    old_key: TradeKey
+    new_key: TradeKey
+    side: Side
+    symbol: str
+    old_local_symbol: str
+    new_local_symbol: str
+    exchange: str
+    currency: str
+    quantity: int
+    rspos: float
+    threshold: float
+    protective_stop_price: float
+    parent_order_type: str = "MKT"
+    protective_order_type: str = "STP"
+    reason: str = "last_day_roll"
+
+
+@dataclass(frozen=True)
 class AlertIntent:
     """Report-only alert produced by planning."""
 
