@@ -7,8 +7,9 @@ from dataclasses import dataclass
 from ibapi.contract import Contract
 from ibapi.order import Order
 
+from quintet.broker.models import BrokerOrder
 from quintet.config import VOICE_MAP
-from quintet.execution.models import PlaceBracketIntent
+from quintet.execution.models import ModifyOrderIntent, PlaceBracketIntent
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,64 @@ def build_futures_contract(intent: PlaceBracketIntent) -> Contract:
     contract.currency = intent.currency
     contract.localSymbol = intent.local_symbol
     return contract
+
+
+def build_modify_order_request(
+    original: BrokerOrder,
+    intent: ModifyOrderIntent,
+) -> IbkrOrderRequest:
+    """Build a same-order-id modification request from current broker state."""
+    contract = build_futures_contract_from_order(original)
+    order = build_modified_order(original, intent)
+    return IbkrOrderRequest(
+        order_id=original.order_id,
+        contract=contract,
+        order=order,
+    )
+
+
+def build_futures_contract_from_order(order: BrokerOrder) -> Contract:
+    """Build the IBKR futures contract for an existing broker order."""
+    contract = Contract()
+    contract.conId = order.con_id
+    contract.symbol = order.symbol
+    contract.secType = "FUT"
+    contract.exchange = order.exchange
+    contract.currency = order.currency
+    contract.localSymbol = order.local_symbol
+    return contract
+
+
+def build_modified_order(original: BrokerOrder, intent: ModifyOrderIntent) -> Order:
+    """Rebuild an existing order with only requested mutable fields changed."""
+    order = Order()
+    order.action = str(original.action)
+    order.orderType = str(original.order_type)
+    order.totalQuantity = original.quantity
+    order.auxPrice = (
+        intent.aux_price if intent.aux_price is not None else original.aux_price
+    )
+    if order.orderType == "STP LMT":
+        order.lmtPrice = (
+            intent.limit_price
+            if intent.limit_price is not None
+            else original.limit_price
+        )
+        if order.lmtPrice is None:
+            raise ValueError("STP LMT order modification requires a limit price")
+    elif intent.limit_price is not None:
+        order.lmtPrice = intent.limit_price
+    if order.orderType in {"STP", "STP LMT"} and order.auxPrice is None:
+        raise ValueError(f"{order.orderType} order modification requires a stop price")
+    order.parentId = original.parent_id or 0
+    order.transmit = original.transmit if original.transmit is not None else True
+    if original.tif:
+        order.tif = original.tif
+    if original.outside_rth is not None:
+        order.outsideRth = original.outside_rth
+    if original.order_ref:
+        order.orderRef = original.order_ref
+    return order
 
 
 def build_entry_order(intent: PlaceBracketIntent, *, order_ref: str) -> Order:

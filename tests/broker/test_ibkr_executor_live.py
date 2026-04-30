@@ -8,7 +8,7 @@ from quintet.contract_handler.product_master import ProductMaster
 from quintet.broker.ibkr.state import IbkrStateClient
 from quintet.data.paths import DataPaths
 from quintet.execution.ibkr import IbkrExecutor
-from quintet.execution.models import PlaceBracketIntent
+from quintet.execution.models import ModifyOrderIntent, PlaceBracketIntent
 from quintet.trading.models import Side, TradePlan
 from quintet.trading.prices import round_to_tick
 
@@ -35,6 +35,22 @@ class LiveIbkrExecutorTests(TestCase):
             order_ids = list(report.submitted[0]["order_ids"])
             self.assertEqual(len(order_ids), 2)
             self.assertEqual(len(report.events), 2)
+
+            modify_report = IbkrExecutor().execute_connected(
+                TradePlan(
+                    intents=[
+                        ModifyOrderIntent(
+                            order_id=order_ids[0],
+                            key=intent.key,
+                            aux_price=intent.entry_stop_price + 1.0,
+                            limit_price=intent.entry_limit_price + 1.0,
+                            reason="live_test",
+                        )
+                    ]
+                ),
+                client,
+            )
+            self.assertEqual(modify_report.submitted[0]["status"], "modified")
         finally:
             for order_id in reversed(order_ids):
                 client.cancel_order(order_id)

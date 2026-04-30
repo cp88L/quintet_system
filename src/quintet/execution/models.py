@@ -20,6 +20,7 @@ class ExecutionStatus(str, Enum):
     CANCELLED = "cancelled"
     CANCEL_REQUESTED = "cancel_requested"
     MODIFIED = "modified"
+    MODIFY_THREW = "modify_threw"
     PLACE_THREW = "place_threw"
     CANCEL_THREW = "cancel_threw"
     REPORTED = "reported"

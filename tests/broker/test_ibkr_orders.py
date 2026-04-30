@@ -1,7 +1,11 @@
 from unittest import TestCase
 
-from quintet.broker.ibkr.orders import build_bracket_order_requests
-from quintet.execution.models import PlaceBracketIntent
+from quintet.broker.ibkr.orders import (
+    build_bracket_order_requests,
+    build_modify_order_request,
+)
+from quintet.broker.models import BrokerOrder
+from quintet.execution.models import ModifyOrderIntent, PlaceBracketIntent
 from quintet.trading.models import Side
 
 
@@ -68,3 +72,45 @@ class IbkrOrderTests(TestCase):
         self.assertEqual(stop.auxPrice, 100.0)
         self.assertEqual(stop.parentId, 21)
         self.assertEqual(stop.orderRef, "tenor")
+
+    def test_modify_reuses_current_order_shape_with_new_prices(self) -> None:
+        request = build_modify_order_request(
+            BrokerOrder(
+                order_id=31,
+                con_id=100,
+                symbol="ES",
+                local_symbol="ESH6",
+                action="BUY",
+                order_type="STP LMT",
+                quantity=3,
+                status="Submitted",
+                exchange="CME",
+                currency="USD",
+                system="E4",
+                aux_price=100.0,
+                limit_price=100.0,
+                parent_id=11,
+                order_ref="piano",
+                tif="GTC",
+                outside_rth=True,
+                transmit=True,
+            ),
+            ModifyOrderIntent(
+                order_id=31,
+                key=(100, "E4"),
+                aux_price=101.0,
+                limit_price=101.0,
+            ),
+        )
+
+        self.assertEqual(request.order_id, 31)
+        self.assertEqual(request.contract.conId, 100)
+        self.assertEqual(request.contract.localSymbol, "ESH6")
+        self.assertEqual(request.order.action, "BUY")
+        self.assertEqual(request.order.orderType, "STP LMT")
+        self.assertEqual(request.order.totalQuantity, 3)
+        self.assertEqual(request.order.auxPrice, 101.0)
+        self.assertEqual(request.order.lmtPrice, 101.0)
+        self.assertEqual(request.order.parentId, 11)
+        self.assertEqual(request.order.orderRef, "piano")
+        self.assertTrue(request.order.transmit)

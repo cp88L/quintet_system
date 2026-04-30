@@ -95,6 +95,7 @@ class BrokerOrder:
     quantity: int
     status: BrokerOrderStatus | str
     exchange: str = ""
+    currency: str = ""
     system: str | None = None
     aux_price: float | None = None
     limit_price: float | None = None
@@ -105,6 +106,7 @@ class BrokerOrder:
     order_ref: str | None = None
     tif: str | None = None
     outside_rth: bool | None = None
+    transmit: bool | None = None
 
 
 @dataclass(frozen=True)

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from quintet.broker.ibkr.orders import build_bracket_order_requests
+from quintet.broker.ibkr.orders import (
+    build_bracket_order_requests,
+    build_modify_order_request,
+)
 from quintet.broker.ibkr.state import IbkrStateClient
 from quintet.execution.models import (
     AlertIntent,
@@ -12,6 +15,7 @@ from quintet.execution.models import (
     ExecutionEvent,
     ExecutionReport,
     ExecutionStatus,
+    ModifyOrderIntent,
     PlaceBracketIntent,
 )
 from quintet.execution.serialize import to_plain
@@ -47,6 +51,9 @@ class IbkrExecutor:
                 continue
             if isinstance(intent, CancelOrderIntent):
                 self._cancel_order(intent, client, submitted, events)
+                continue
+            if isinstance(intent, ModifyOrderIntent):
+                self._modify_order(intent, client, submitted, events)
                 continue
             if not isinstance(intent, PlaceBracketIntent):
                 events.append(
@@ -89,6 +96,59 @@ class IbkrExecutor:
             alerts=alerts,
             open_orders_after=open_orders_after,
             events=events,
+        )
+
+    def _modify_order(
+        self,
+        intent: ModifyOrderIntent,
+        client: IbkrStateClient,
+        submitted: list[dict],
+        events: list[ExecutionEvent],
+    ) -> None:
+        try:
+            open_orders = client.get_open_orders()
+            original = next(
+                order for order in open_orders if order.order_id == intent.order_id
+            )
+            request = build_modify_order_request(original, intent)
+            client.place_order(request.order_id, request.contract, request.order)
+        except StopIteration:
+            events.append(
+                ExecutionEvent(
+                    status=ExecutionStatus.MODIFY_THREW,
+                    intent=intent.__class__.__name__,
+                    order_id=intent.order_id,
+                    key=intent.key,
+                    message="order is not open",
+                )
+            )
+            return
+        except Exception as exc:
+            events.append(
+                ExecutionEvent(
+                    status=ExecutionStatus.MODIFY_THREW,
+                    intent=intent.__class__.__name__,
+                    order_id=intent.order_id,
+                    key=intent.key,
+                    message=str(exc),
+                )
+            )
+            return
+
+        submitted.append(
+            {
+                "status": ExecutionStatus.MODIFIED.value,
+                "order_id": intent.order_id,
+                "intent": to_plain(intent),
+            }
+        )
+        events.append(
+            ExecutionEvent(
+                status=ExecutionStatus.MODIFIED,
+                intent=intent.__class__.__name__,
+                order_id=intent.order_id,
+                key=intent.key,
+            )
         )
 
     def _cancel_order(

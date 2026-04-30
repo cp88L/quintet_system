@@ -34,6 +34,7 @@ def map_open_order(order_id: int, contract, order, order_state) -> BrokerOrder:
         order_type=str(_get(order, "orderType", "") or ""),
         quantity=int(float(_get(order, "totalQuantity", 0) or 0)),
         status=str(_get(order_state, "status", "") or "Unknown"),
+        currency=str(_get(contract, "currency", "") or ""),
         system=VOICE_TO_SYSTEM.get(order_ref),
         aux_price=_optional_float(_get(order, "auxPrice", None)),
         limit_price=_optional_float(_get(order, "lmtPrice", None)),
@@ -44,6 +45,7 @@ def map_open_order(order_id: int, contract, order, order_state) -> BrokerOrder:
         order_ref=order_ref or None,
         tif=str(_get(order, "tif", "") or "") or None,
         outside_rth=_optional_bool(_get(order, "outsideRth", None)),
+        transmit=_optional_bool(_get(order, "transmit", None)),
     )
 
 
