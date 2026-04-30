@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from quintet.execution.models import AlertIntent, ExecutionReport
+from quintet.execution.models import AlertIntent, ExecutionReport, ExecutionStatus
 from quintet.execution.serialize import to_plain
 from quintet.trading.models import TradePlan
 
@@ -22,7 +22,9 @@ class DryRunExecutor:
             if isinstance(intent, AlertIntent):
                 alerts.append(payload)
             else:
-                submitted.append({"status": "dry_run", "intent": payload})
+                submitted.append(
+                    {"status": ExecutionStatus.DRY_RUN.value, "intent": payload}
+                )
         return ExecutionReport(
             generated_at=datetime.now(),
             mode=self.mode,

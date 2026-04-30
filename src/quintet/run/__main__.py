@@ -163,7 +163,14 @@ def main() -> int:
         print(f"  place brackets: {n_place}")
         print(f"  skipped: {len(plan.skipped)}")
         print(f"  report mode: {report.mode}")
-        print(f"  submitted: {len(report.submitted)}")
+        print(f"  submitted: {report.counts.submitted}")
+        print(f"  cancel requested: {report.counts.cancel_requested}")
+        print(f"  modified: {report.counts.modified}")
+        print(f"  reported only: {report.counts.reported_only}")
+        print(f"  alerts: {report.counts.alerts}")
+        print(f"  threw: {report.counts.threw}")
+        if report.counts.dry_run:
+            print(f"  dry run actions: {report.counts.dry_run}")
         print(f"  wrote {report_dir / 'latest_trade_plan.json'}")
         print(f"  wrote {report_dir / 'latest_execution_report.json'}")
 

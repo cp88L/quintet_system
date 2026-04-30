@@ -19,6 +19,7 @@ class ExecutionStatus(str, Enum):
     SUBMITTED = "submitted"
     CANCELLED = "cancelled"
     CANCEL_REQUESTED = "cancel_requested"
+    DRY_RUN = "dry_run"
     EXIT_SUBMITTED = "exit_submitted"
     MODIFIED = "modified"
     MODIFY_THREW = "modify_threw"
@@ -129,6 +130,20 @@ class ExecutionEvent:
 
 
 @dataclass(frozen=True)
+class ExecutionCounts:
+    """Operator-facing execution outcome totals."""
+
+    submitted: int = 0
+    cancel_requested: int = 0
+    modified: int = 0
+    reported_only: int = 0
+    alerts: int = 0
+    threw: int = 0
+    dry_run: int = 0
+    skipped: int = 0
+
+
+@dataclass(frozen=True)
 class ExecutionReport:
     """Result of dry-run or live execution."""
 
@@ -139,3 +154,61 @@ class ExecutionReport:
     alerts: list[dict] = field(default_factory=list)
     open_orders_after: list[dict] = field(default_factory=list)
     events: list[ExecutionEvent] = field(default_factory=list)
+    counts: ExecutionCounts = field(init=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "counts",
+            summarize_execution_counts(
+                submitted=self.submitted,
+                skipped=self.skipped,
+                alerts=self.alerts,
+                events=self.events,
+            ),
+        )
+
+
+def summarize_execution_counts(
+    *,
+    submitted: list[dict],
+    skipped: list[dict],
+    alerts: list[dict],
+    events: list[ExecutionEvent],
+) -> ExecutionCounts:
+    """Compute stable JSON/CLI counts from the report sections."""
+    status_counts: dict[str, int] = {}
+    for record in submitted:
+        status = _status_value(record.get("status"))
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    event_statuses = [_status_value(event.status) for event in events]
+    submitted_count = status_counts.get(ExecutionStatus.SUBMITTED.value, 0)
+    submitted_count += status_counts.get(ExecutionStatus.EXIT_SUBMITTED.value, 0)
+    reported_only = status_counts.get(ExecutionStatus.REPORTED.value, 0)
+    reported_only += sum(
+        1 for status in event_statuses if status == ExecutionStatus.REPORTED.value
+    )
+    threw = sum(
+        count for status, count in status_counts.items() if status.endswith("_threw")
+    )
+    threw += sum(1 for status in event_statuses if status.endswith("_threw"))
+
+    return ExecutionCounts(
+        submitted=submitted_count,
+        cancel_requested=status_counts.get(ExecutionStatus.CANCEL_REQUESTED.value, 0),
+        modified=status_counts.get(ExecutionStatus.MODIFIED.value, 0),
+        reported_only=reported_only,
+        alerts=len(alerts),
+        threw=threw,
+        dry_run=status_counts.get(ExecutionStatus.DRY_RUN.value, 0),
+        skipped=len(skipped),
+    )
+
+
+def _status_value(status: object) -> str:
+    if isinstance(status, ExecutionStatus):
+        return status.value
+    if status is None:
+        return ""
+    return str(status)

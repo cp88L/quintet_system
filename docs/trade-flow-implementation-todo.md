@@ -39,13 +39,12 @@ Add questions here instead of stopping unless continuing would risk orders, acco
    - Report missing, not-yet-advanced, below-threshold, or missing-stop roll state as alerts.
    - Keep live roll execution deferred.
 
-## Remaining Slices
-
 4. **Execution reporting cleanup**
-   - Report submitted, cancel-requested, modified, reported-only, alerts, and threw counts separately.
-   - Keep JSON report and CLI summary consistent.
+   - Add computed execution counts for submitted, cancel-requested, modified, reported-only, alerts, threw, dry-run, and skipped outcomes.
+   - Print the same count fields in the CLI summary that are written to `latest_execution_report.json`.
    - Add serialization/report tests.
-   - Commit when complete.
+
+## Remaining Slices
 
 5. **Dashboard/report viewer**
    - Surface latest trade plan and execution report in the dashboard.
