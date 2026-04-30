@@ -50,15 +50,14 @@ Add questions here instead of stopping unless continuing would risk orders, acco
    - Add operator-action text for alerts and deferred roll entries.
    - Add dashboard registration and report-loader tests.
 
-## Remaining Slices
-
 6. **End-to-end broker-state scenario tests**
-   - Cover stale entry cancel.
-   - Cover entry modify.
-   - Cover position stop modify.
-   - Cover missing stop alert.
-   - Cover manual/outside-system order alert.
-   - Commit when complete.
+   - Add broker-state-to-plan tests for stale entry cancel.
+   - Add broker-state-to-plan tests for entry modify.
+   - Add broker-state-to-plan tests for position stop modify.
+   - Add broker-state-to-plan tests for missing stop alerts.
+   - Add broker-state-to-plan tests for manual/outside-system order alerts.
+
+## Remaining Slices
 
 7. **Manual/outside-system trade hardening**
    - Keep handling simple and report-only unless explicitly approved.
