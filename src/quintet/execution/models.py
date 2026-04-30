@@ -19,9 +19,11 @@ class ExecutionStatus(str, Enum):
     SUBMITTED = "submitted"
     CANCELLED = "cancelled"
     CANCEL_REQUESTED = "cancel_requested"
+    EXIT_SUBMITTED = "exit_submitted"
     MODIFIED = "modified"
     MODIFY_THREW = "modify_threw"
     PLACE_THREW = "place_threw"
+    EXIT_THREW = "exit_threw"
     CANCEL_THREW = "cancel_threw"
     REPORTED = "reported"
 
@@ -79,6 +81,8 @@ class ExitPositionIntent:
     symbol: str
     local_symbol: str
     quantity: int
+    exchange: str = ""
+    currency: str = "USD"
     reason: str = "exit"
 
 

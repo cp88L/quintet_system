@@ -9,7 +9,11 @@ from ibapi.order import Order
 
 from quintet.broker.models import BrokerOrder
 from quintet.config import VOICE_MAP
-from quintet.execution.models import ModifyOrderIntent, PlaceBracketIntent
+from quintet.execution.models import (
+    ExitPositionIntent,
+    ModifyOrderIntent,
+    PlaceBracketIntent,
+)
 
 
 @dataclass(frozen=True)
@@ -84,6 +88,44 @@ def build_futures_contract_from_order(order: BrokerOrder) -> Contract:
     contract.currency = order.currency
     contract.localSymbol = order.local_symbol
     return contract
+
+
+def build_exit_order_request(
+    intent: ExitPositionIntent,
+    *,
+    order_id: int,
+) -> IbkrOrderRequest:
+    """Build a market exit request for an existing position."""
+    contract = build_futures_contract_from_exit(intent)
+    order = build_market_exit_order(intent)
+    return IbkrOrderRequest(order_id=order_id, contract=contract, order=order)
+
+
+def build_futures_contract_from_exit(intent: ExitPositionIntent) -> Contract:
+    """Build the IBKR futures contract for an exit intent."""
+    contract = Contract()
+    contract.conId = intent.key[0]
+    contract.symbol = intent.symbol
+    contract.secType = "FUT"
+    contract.exchange = intent.exchange
+    contract.currency = intent.currency
+    contract.localSymbol = intent.local_symbol
+    return contract
+
+
+def build_market_exit_order(intent: ExitPositionIntent) -> Order:
+    """Build the market order used to exit an existing position."""
+    if intent.quantity <= 0:
+        raise ValueError("exit quantity must be positive")
+    order = Order()
+    order.action = intent.side.exit_action
+    order.orderType = "MKT"
+    order.totalQuantity = intent.quantity
+    order.transmit = True
+    order.tif = "GTC"
+    order.outsideRth = True
+    order.orderRef = VOICE_MAP[intent.key[1]]
+    return order
 
 
 def build_modified_order(original: BrokerOrder, intent: ModifyOrderIntent) -> Order:

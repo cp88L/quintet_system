@@ -2,10 +2,15 @@ from unittest import TestCase
 
 from quintet.broker.ibkr.orders import (
     build_bracket_order_requests,
+    build_exit_order_request,
     build_modify_order_request,
 )
 from quintet.broker.models import BrokerOrder
-from quintet.execution.models import ModifyOrderIntent, PlaceBracketIntent
+from quintet.execution.models import (
+    ExitPositionIntent,
+    ModifyOrderIntent,
+    PlaceBracketIntent,
+)
 from quintet.trading.models import Side
 
 
@@ -113,4 +118,27 @@ class IbkrOrderTests(TestCase):
         self.assertEqual(request.order.lmtPrice, 101.0)
         self.assertEqual(request.order.parentId, 11)
         self.assertEqual(request.order.orderRef, "piano")
+        self.assertTrue(request.order.transmit)
+
+    def test_exit_builds_market_order_with_side_aware_action(self) -> None:
+        request = build_exit_order_request(
+            ExitPositionIntent(
+                key=(100, "C4"),
+                side=Side.LONG,
+                symbol="ES",
+                local_symbol="ESH6",
+                quantity=2,
+                exchange="CME",
+                currency="USD",
+            ),
+            order_id=41,
+        )
+
+        self.assertEqual(request.order_id, 41)
+        self.assertEqual(request.contract.conId, 100)
+        self.assertEqual(request.contract.localSymbol, "ESH6")
+        self.assertEqual(request.order.action, "SELL")
+        self.assertEqual(request.order.orderType, "MKT")
+        self.assertEqual(request.order.totalQuantity, 2)
+        self.assertEqual(request.order.orderRef, "trumpet")
         self.assertTrue(request.order.transmit)

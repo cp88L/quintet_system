@@ -17,16 +17,17 @@ Rules for every slice:
 
 Add questions here instead of stopping unless continuing would risk orders, account safety, or signal/business-rule drift.
 
-- None yet.
+- Live exit execution has unit coverage only. A true paper Gateway test requires deliberately opening and closing a filled position, which is possible but should be reviewed before making it part of the routine suite.
 
-## Remaining Slices
+## Completed Slices
 
 1. **Live exit execution**
-   - Wire `ExitPositionIntent` into `IbkrExecutor`.
-   - Build IBKR exit orders from broker-neutral intent data.
-   - Add unit tests and a safe paper Gateway test.
-   - Verify final Gateway state has no unintended open orders.
-   - Commit when complete.
+   - Wired `ExitPositionIntent` into `IbkrExecutor`.
+   - Added IBKR market exit order building from broker-neutral intent data.
+   - Added unit tests for order building and executor dispatch.
+   - Deferred filled-position paper Gateway coverage for review.
+
+## Remaining Slices
 
 2. **Last-day maintenance exits**
    - Generate `ExitPositionIntent` for held positions at the configured last-day rule.

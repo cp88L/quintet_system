@@ -6,6 +6,7 @@ from datetime import datetime
 
 from quintet.broker.ibkr.orders import (
     build_bracket_order_requests,
+    build_exit_order_request,
     build_modify_order_request,
 )
 from quintet.broker.ibkr.state import IbkrStateClient
@@ -15,6 +16,7 @@ from quintet.execution.models import (
     ExecutionEvent,
     ExecutionReport,
     ExecutionStatus,
+    ExitPositionIntent,
     ModifyOrderIntent,
     PlaceBracketIntent,
 )
@@ -54,6 +56,9 @@ class IbkrExecutor:
                 continue
             if isinstance(intent, ModifyOrderIntent):
                 self._modify_order(intent, client, submitted, events)
+                continue
+            if isinstance(intent, ExitPositionIntent):
+                self._exit_position(intent, client, submitted, events)
                 continue
             if not isinstance(intent, PlaceBracketIntent):
                 events.append(
@@ -96,6 +101,44 @@ class IbkrExecutor:
             alerts=alerts,
             open_orders_after=open_orders_after,
             events=events,
+        )
+
+    def _exit_position(
+        self,
+        intent: ExitPositionIntent,
+        client: IbkrStateClient,
+        submitted: list[dict],
+        events: list[ExecutionEvent],
+    ) -> None:
+        try:
+            order_id = client.get_next_order_id()
+            request = build_exit_order_request(intent, order_id=order_id)
+            client.place_order(request.order_id, request.contract, request.order)
+        except Exception as exc:
+            events.append(
+                ExecutionEvent(
+                    status=ExecutionStatus.EXIT_THREW,
+                    intent=intent.__class__.__name__,
+                    key=intent.key,
+                    message=str(exc),
+                )
+            )
+            return
+
+        submitted.append(
+            {
+                "status": ExecutionStatus.EXIT_SUBMITTED.value,
+                "order_id": request.order_id,
+                "intent": to_plain(intent),
+            }
+        )
+        events.append(
+            ExecutionEvent(
+                status=ExecutionStatus.EXIT_SUBMITTED,
+                intent=intent.__class__.__name__,
+                order_id=request.order_id,
+                key=intent.key,
+            )
         )
 
     def _modify_order(
