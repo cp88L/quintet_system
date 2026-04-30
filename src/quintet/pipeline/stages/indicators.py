@@ -16,7 +16,7 @@ class IndicatorsStage(PipelineStage):
         return getattr(args, "no_indicators", False)
 
     def skip_message(self) -> str:
-        return "STEPS 1-3: skipped via --no-indicators"
+        return "STEPS 1-2: skipped via --no-indicators"
 
     def run(self, ctx: PipelineContext) -> None:
         print("\n" + "=" * 60)

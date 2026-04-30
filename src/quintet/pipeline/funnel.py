@@ -3,7 +3,7 @@
 The funnel is the per-system per-product state that filter stages mutate.
 Each `ProductCandidate` carries its full diagnostic record: prob, cluster
 id, structure levels, latest-bar high, plus per-gate pass/fail verdicts.
-A product is `actionable` when every gate has passed.
+A product is `actionable` when every signal gate has passed.
 
 Funnel state is held in `PipelineContext.funnels` for the duration of one
 run and snapshotted to `data/processed/_funnel.json` by `SnapshotStage`.
@@ -34,6 +34,7 @@ class ProductCandidate:
     cluster_id: int | None = None
     res_n: float | None = None
     sup_n: float | None = None
+    rspos_n: float | None = None
     high: float | None = None
 
     # Populated by the corresponding filter stage; None until that stage runs.
@@ -44,12 +45,11 @@ class ProductCandidate:
 
     @property
     def actionable(self) -> bool:
-        """True iff every gate has run and produced a True verdict."""
+        """True iff every signal gate has run and produced a True verdict."""
         return (
             self.tau_pass is True
             and self.cluster_pass is True
             and self.breakout_pass is True
-            and self.position_pass is True
         )
 
     def to_dict(self) -> dict:
@@ -61,6 +61,7 @@ class ProductCandidate:
             "cluster_id": self.cluster_id,
             "res_n": self.res_n,
             "sup_n": self.sup_n,
+            "rspos_n": self.rspos_n,
             "high": self.high,
             "tau_pass": self.tau_pass,
             "cluster_pass": self.cluster_pass,
@@ -84,8 +85,11 @@ class SystemFunnel:
         return [p for p in self.products.values() if p.actionable]
 
     def count_passing(self, gate: str) -> int:
-        """Count products where `<gate>_pass is True`. `gate` ∈
-        {tau, cluster, breakout, position}."""
+        """Count products where `<gate>_pass is True`.
+
+        Active signal gates are tau, cluster, and breakout. `position_pass`
+        remains on `ProductCandidate` only for backward-compatible snapshots.
+        """
         attr = f"{gate}_pass"
         return sum(1 for p in self.products.values() if getattr(p, attr) is True)
 
@@ -109,7 +113,6 @@ class SystemFunnel:
             "n_tau_pass": self.count_passing("tau"),
             "n_cluster_pass": self.count_passing("cluster"),
             "n_breakout_pass": self.count_passing("breakout"),
-            "n_position_pass": self.count_passing("position"),
             "n_actionable": len(self.actionable_products),
             "products": [p.to_dict() for p in self.products.values()],
         }

@@ -12,6 +12,7 @@ src/quintet/data/raw/
 
 # generated per-system parquets (rebuilt by step 1; not source-of-truth)
 src/quintet/data/processed/
+src/quintet/data/reports/
 
 # local secrets / config
 .env

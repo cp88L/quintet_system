@@ -10,8 +10,9 @@ from pathlib import Path
 # =============================================================================
 HOST = "127.0.0.1"
 PORT = 4002
+# Client 0 is required for broker-state collection: it can see/bind manual
+# TWS/Gateway orders as well as orders submitted by this flow.
 CLIENT_ID = 0
-CONTRACT_DETAILS_TIMEOUT = 5
 
 # =============================================================================
 # TRADING SYSTEMS
@@ -98,8 +99,8 @@ TARGET_MARGIN = 0.02  # Buy_B/Sell_A margin: long = (prev_close − sup) × this
 # =============================================================================
 # Each day, after per-product probabilities are produced, the system clusters
 # its live universe by VNS_{SYSTEM_LABEL} (the seed/strength feature) using
-# k-means, sorts cluster ids by centroid value (ascending), and zeros out
-# predictions for products whose cluster id is not in INCLUDE_CLUSTERS.
+# k-means, sorts cluster ids by centroid value (ascending), and fails the
+# cluster gate for products whose cluster id is not in INCLUDE_CLUSTERS.
 #
 # N_CLUSTERS=None disables the filter for that system (E13).
 N_CLUSTERS = {
@@ -116,17 +117,3 @@ INCLUDE_CLUSTERS = {
     "E7":  {3},
     "E13": None,
 }
-
-# =============================================================================
-# IB ERROR CODES
-# =============================================================================
-# Error codes that indicate broker rejection (not user action)
-IB_BROKER_REJECTION_CODES = {
-    103,  # Order rejected - duplicate order
-    104,  # Order rejected - cannot modify a filled order
-    201,  # Order rejected - no trading permission (compliance)
-    202,  # Order cancelled
-}
-
-# Non-error status messages to suppress
-IB_INFO_CODES = {2104, 2106, 2158}  # Market data farm connected messages

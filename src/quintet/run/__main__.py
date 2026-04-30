@@ -10,8 +10,8 @@ The pipeline is a fixed sequence of stages from
     4. Tau           — Wilson walkdown + per-product tau gate
     5. Clusters      — k-means cluster_id + INCLUDE_CLUSTERS gate
     6. Breakout      — high < Res_N gate
-    7. Positions     — dedupe by (con_id, system) against held positions
-    8. Snapshot      — write data/processed/_funnel.json
+    7. Snapshot      — write data/processed/_funnel.json
+    8. Trade         — optional broker-neutral dry-run or live execution
 
 Each stage is a `PipelineStage` subclass that owns its own print block
 and reads/writes `PipelineContext`. CLI flags map to per-stage
@@ -29,6 +29,8 @@ Usage:
     python -m quintet.run --no-indicators       # skip data-rebuild stages
     python -m quintet.run --force-full-year     # rebuild full-year window
     python -m quintet.run --trim-today          # drop today's partial bar
+    python -m quintet.run --dry-run             # write broker-neutral trade reports
+    python -m quintet.run --live                # submit supported trade intents
 """
 
 import argparse
@@ -36,6 +38,7 @@ import sys
 from datetime import date
 
 from quintet.contract_handler.contract_registry import ContractRegistry
+from quintet.flows.daily import run_trade_dry_run, run_trade_live
 from quintet.pipeline.context import PipelineContext
 from quintet.pipeline.stages import PIPELINE
 
@@ -91,6 +94,24 @@ def _parse_args() -> argparse.Namespace:
             "still-open partial bar."
         ),
     )
+    execution = parser.add_mutually_exclusive_group()
+    execution.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "After the signal pipeline, build a broker-neutral trade plan "
+            "from current IBKR account, positions, and open orders. No order "
+            "placement."
+        ),
+    )
+    execution.add_argument(
+        "--live",
+        action="store_true",
+        help=(
+            "After the signal pipeline, submit supported trade intents to "
+            "the configured IBKR paper Gateway."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -116,6 +137,35 @@ def main() -> int:
                 print("=" * 60)
             continue
         stage.run(ctx)
+
+    if args.dry_run or args.live:
+        print("\n" + "=" * 60)
+        print("STEP 8: Trade live" if args.live else "STEP 8: Trade dry-run")
+        print("=" * 60)
+        if args.live:
+            broker_state, plan, report = run_trade_live(ctx)
+        else:
+            from quintet.broker.ibkr.state import IbkrBrokerGateway
+
+            broker_state = IbkrBrokerGateway().collect_state()
+            plan, report = run_trade_dry_run(ctx, broker_state=broker_state)
+        print(
+            f"  broker state: equity={broker_state.account.net_liquidation:.2f} "
+            f"positions={len(broker_state.positions)} "
+            f"open_orders={len(broker_state.open_orders)}"
+        )
+        n_place = sum(
+            1 for i in plan.intents if i.__class__.__name__ == "PlaceBracketIntent"
+        )
+        report_dir = ctx.paths.base / "reports"
+        print(f"  signals: {len(plan.signals)}")
+        print(f"  intents: {len(plan.intents)}")
+        print(f"  place brackets: {n_place}")
+        print(f"  skipped: {len(plan.skipped)}")
+        print(f"  report mode: {report.mode}")
+        print(f"  submitted: {len(report.submitted)}")
+        print(f"  wrote {report_dir / 'latest_trade_plan.json'}")
+        print(f"  wrote {report_dir / 'latest_execution_report.json'}")
 
     return 0
 

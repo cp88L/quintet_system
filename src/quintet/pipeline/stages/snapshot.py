@@ -16,7 +16,7 @@ from quintet.pipeline.stages.base import PipelineStage
 
 
 class SnapshotStage(PipelineStage):
-    name = "STEP 8: Snapshot"
+    name = "STEP 7: Snapshot"
 
     def run(self, ctx: PipelineContext) -> None:
         print("\n" + "=" * 60)
@@ -38,7 +38,7 @@ class SnapshotStage(PipelineStage):
         print("  Funnel reduction:")
         header = (
             f"  {'sys':<5} {'universe':>9} {'tau':>6} {'cluster':>8} "
-            f"{'breakout':>9} {'position':>9} {'actionable':>11}"
+            f"{'breakout':>9} {'actionable':>11}"
         )
         print(header)
         for system in SYSTEMS:
@@ -50,6 +50,5 @@ class SnapshotStage(PipelineStage):
                 f"{f.count_passing('tau'):>6} "
                 f"{f.count_passing('cluster'):>8} "
                 f"{f.count_passing('breakout'):>9} "
-                f"{f.count_passing('position'):>9} "
                 f"{len(f.actionable_products):>11}"
             )

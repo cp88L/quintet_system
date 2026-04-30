@@ -14,7 +14,7 @@ import argparse
 
 import pandas as pd
 
-from quintet.config import SYSTEM_LABEL, SYSTEMS
+from quintet.config import INDICATORS, SYSTEM_LABEL, SYSTEMS
 from quintet.pipeline.context import PipelineContext
 from quintet.pipeline.funnel import ProductCandidate, SystemFunnel
 from quintet.pipeline.stages.base import PipelineStage
@@ -40,7 +40,10 @@ class BuildFunnelStage(PipelineStage):
         funnel = SystemFunnel(system=system, today=ctx.today)
         label = SYSTEM_LABEL[system]
         sup_col, res_col = f"Sup_{label}", f"Res_{label}"
+        rspos_col = next((c for c in INDICATORS[system] if c.startswith("RSpos_")), None)
         cols = ["timestamp", "high", "prob", sup_col, res_col]
+        if rspos_col:
+            cols.append(rspos_col)
 
         for symbol in ctx.master.get_products_for_system(system):
             local_symbol = ctx.registry.get_active_contract(symbol, as_of=ctx.today)
@@ -71,6 +74,7 @@ class BuildFunnelStage(PipelineStage):
                 prob=_to_optional_float(row.get("prob")),
                 res_n=_to_optional_float(row.get(res_col)),
                 sup_n=_to_optional_float(row.get(sup_col)),
+                rspos_n=_to_optional_float(row.get(rspos_col)) if rspos_col else None,
                 high=_to_optional_float(row.get("high")),
             )
         return funnel

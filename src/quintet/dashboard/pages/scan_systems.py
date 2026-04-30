@@ -5,7 +5,8 @@ Each chart card shows the full OHLC + Sup/Res price chart and a prob
 subplot with the dashed system τ hline and a dotted today's-prob hline.
 Per-product gate state is rendered as colored badges: τ (prob ≥ tau),
 C (cluster pass), B (breakout pass) plus a green "ACTIONABLE" tag when
-all three pass. Order: actionable first, then by gates-passed, then prob.
+tau, cluster, and breakout gates all pass. Order: actionable first, then
+by gates-passed, then prob.
 """
 
 from __future__ import annotations

@@ -9,8 +9,9 @@ For each system with `N_CLUSTERS[s]` not None, the cluster step:
    max(last_bar) across the system. Products whose last bar < today are
    reported as misaligned.
 3. Takes `VNS_{SYSTEM_LABEL[s]}` from C's today row for each product.
-4. Clusters those values with `whiten / kmeans / vq` (cell-31 verbatim,
-   no seed). cluster 0 = weakest centroid.
+4. Clusters those values with `whiten / kmeans / vq` using a fixed RNG so
+   repeated EOD runs over the same data produce the same labels. Cluster 0 =
+   weakest centroid.
 
 Returns a dict with today's labels per product. The result is consumed
 in-process; nothing is written to disk.
@@ -163,7 +164,7 @@ class ClusterAssigner:
             )
 
         w = whiten(arr)
-        centroids, _ = kmeans(w, n)
+        centroids, _ = kmeans(w, n, rng=np.random.default_rng(0))
         sorted_centroids = np.sort(centroids)  # cluster 0 = weakest
         labels, _ = vq(w, sorted_centroids)
 
