@@ -72,6 +72,7 @@ class ExecutionReportCountsTests(TestCase):
                 "cancel_requested": 0,
                 "modified": 0,
                 "reported_only": 0,
+                "roll_submitted": 0,
                 "alerts": 1,
                 "threw": 0,
                 "dry_run": 1,

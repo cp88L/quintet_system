@@ -22,9 +22,11 @@ class ExecutionStatus(str, Enum):
     DRY_RUN = "dry_run"
     EXIT_SUBMITTED = "exit_submitted"
     MODIFIED = "modified"
+    ROLL_SUBMITTED = "roll_submitted"
     MODIFY_THREW = "modify_threw"
     PLACE_THREW = "place_threw"
     EXIT_THREW = "exit_threw"
+    ROLL_THREW = "roll_threw"
     CANCEL_THREW = "cancel_threw"
     REPORTED = "reported"
 
@@ -165,6 +167,7 @@ class ExecutionCounts:
     cancel_requested: int = 0
     modified: int = 0
     reported_only: int = 0
+    roll_submitted: int = 0
     alerts: int = 0
     threw: int = 0
     dry_run: int = 0
@@ -213,6 +216,7 @@ def summarize_execution_counts(
     event_statuses = [_status_value(event.status) for event in events]
     submitted_count = status_counts.get(ExecutionStatus.SUBMITTED.value, 0)
     submitted_count += status_counts.get(ExecutionStatus.EXIT_SUBMITTED.value, 0)
+    submitted_count += status_counts.get(ExecutionStatus.ROLL_SUBMITTED.value, 0)
     reported_only = status_counts.get(ExecutionStatus.REPORTED.value, 0)
     reported_only += sum(
         1 for status in event_statuses if status == ExecutionStatus.REPORTED.value
@@ -227,6 +231,7 @@ def summarize_execution_counts(
         cancel_requested=status_counts.get(ExecutionStatus.CANCEL_REQUESTED.value, 0),
         modified=status_counts.get(ExecutionStatus.MODIFIED.value, 0),
         reported_only=reported_only,
+        roll_submitted=status_counts.get(ExecutionStatus.ROLL_SUBMITTED.value, 0),
         alerts=len(alerts),
         threw=threw,
         dry_run=status_counts.get(ExecutionStatus.DRY_RUN.value, 0),

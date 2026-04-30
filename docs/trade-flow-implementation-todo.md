@@ -70,15 +70,13 @@ Add questions here instead of stopping unless continuing would risk orders, acco
    - Added new-contract RTH market roll parent and ETH protective stop child builder.
    - Added unit tests for long/short closeout OCA orders and long roll-entry bracket orders.
 
-## Remaining Slices
-
 9. **Live roll executor wiring**
-   - Teach `IbkrExecutor` to submit the complete close-and-roll bundle instead of reporting it only.
-   - Sequence roll placement as one broker operation: cancel existing stop, submit replacement stop + RTH market exit OCA pair, then submit the RTH market roll-entry parent and protective child stop when a roll entry qualifies.
-   - Preserve fail-fast behavior: if order construction or placement throws, record `roll_threw` and continue reporting the failure; do not silently fallback.
-   - Add execution-report status/count coverage for roll-submitted and roll-threw outcomes.
-   - Add executor tests proving the full roll bundle places the expected old-contract OCA orders and new-contract bracket orders.
-   - Commit when complete.
+   - Wired `IbkrExecutor` to submit the complete close-and-roll bundle.
+   - Cancel existing stop, submit replacement stop + RTH market exit OCA pair, then submit the RTH market roll-entry parent and protective child stop when present.
+   - Added `roll_submitted` / `roll_threw` report statuses and roll-submitted counts.
+   - Added executor tests proving the expected old-contract OCA orders and new-contract bracket orders are placed.
+
+## Remaining Slices
 
 10. **Live roll planning integration check**
    - Verify maintenance emits a single close-and-roll bundle on `today >= last_day`, not disconnected old-exit and new-entry intents.

@@ -7,7 +7,9 @@ from datetime import datetime
 from quintet.broker.ibkr.orders import (
     build_bracket_order_requests,
     build_exit_order_request,
+    build_last_day_closeout_order_requests,
     build_modify_order_request,
+    build_roll_entry_order_requests,
 )
 from quintet.broker.ibkr.state import IbkrStateClient
 from quintet.execution.models import (
@@ -17,6 +19,7 @@ from quintet.execution.models import (
     ExecutionReport,
     ExecutionStatus,
     ExitPositionIntent,
+    LastDayCloseoutIntent,
     ModifyOrderIntent,
     PlaceBracketIntent,
 )
@@ -56,6 +59,9 @@ class IbkrExecutor:
                 continue
             if isinstance(intent, ModifyOrderIntent):
                 self._modify_order(intent, client, submitted, events)
+                continue
+            if isinstance(intent, LastDayCloseoutIntent):
+                self._last_day_closeout(intent, client, submitted, events)
                 continue
             if isinstance(intent, ExitPositionIntent):
                 self._exit_position(intent, client, submitted, events)
@@ -101,6 +107,77 @@ class IbkrExecutor:
             alerts=alerts,
             open_orders_after=open_orders_after,
             events=events,
+        )
+
+    def _last_day_closeout(
+        self,
+        intent: LastDayCloseoutIntent,
+        client: IbkrStateClient,
+        submitted: list[dict],
+        events: list[ExecutionEvent],
+    ) -> None:
+        try:
+            replacement_stop_order_id = client.get_next_order_id()
+            market_exit_order_id = client.get_next_order_id()
+            closeout_requests = build_last_day_closeout_order_requests(
+                intent,
+                replacement_stop_order_id=replacement_stop_order_id,
+                market_exit_order_id=market_exit_order_id,
+            )
+            roll_order_ids: list[int] = []
+            roll_requests = []
+            if intent.roll_entry is not None:
+                roll_parent_order_id = client.get_next_order_id()
+                roll_stop_order_id = client.get_next_order_id()
+                roll_order_ids = [roll_parent_order_id, roll_stop_order_id]
+                roll_requests = build_roll_entry_order_requests(
+                    intent.roll_entry,
+                    parent_order_id=roll_parent_order_id,
+                    stop_order_id=roll_stop_order_id,
+                )
+
+            client.cancel_order(intent.protective_stop.order_id)
+            events.append(
+                ExecutionEvent(
+                    status=ExecutionStatus.CANCEL_REQUESTED,
+                    intent=intent.__class__.__name__,
+                    order_id=intent.protective_stop.order_id,
+                    key=intent.key,
+                    message="cancel existing protective stop before OCA replacement",
+                )
+            )
+            for request in [*closeout_requests, *roll_requests]:
+                client.place_order(request.order_id, request.contract, request.order)
+                events.append(
+                    ExecutionEvent(
+                        status=ExecutionStatus.ROLL_SUBMITTED,
+                        intent=intent.__class__.__name__,
+                        order_id=request.order_id,
+                        key=intent.key,
+                    )
+                )
+        except Exception as exc:
+            events.append(
+                ExecutionEvent(
+                    status=ExecutionStatus.ROLL_THREW,
+                    intent=intent.__class__.__name__,
+                    key=intent.key,
+                    message=str(exc),
+                )
+            )
+            return
+
+        submitted.append(
+            {
+                "status": ExecutionStatus.ROLL_SUBMITTED.value,
+                "cancelled_stop_order_id": intent.protective_stop.order_id,
+                "closeout_order_ids": [
+                    replacement_stop_order_id,
+                    market_exit_order_id,
+                ],
+                "roll_order_ids": roll_order_ids,
+                "intent": to_plain(intent),
+            }
         )
 
     def _exit_position(
