@@ -202,26 +202,20 @@ def _bracket_lines(
         "",
         f"  New entries ({mode_label}{order_type_label}):",
     ]
-    for index, record in enumerate(rows, start=1):
+    for record in rows:
         intent = record["intent"]
         key = _key_tuple(intent.get("key"))
-        signal = signal_by_key.get(key) if key is not None else None
         system = key[1] if key is not None else "-"
         action = f"{intent.get('entry_action', '-')} {intent.get('quantity', 0)}"
         entry = f"entry {_fmt_float(intent.get('entry_stop_price'))}"
         stop = f"stop {_fmt_float(intent.get('protective_stop_price'))}"
-        model = (
-            f"p {_fmt_float(getattr(signal, 'prob', None), digits=4)} >= "
-            f"{_fmt_float(getattr(signal, 'tau', None), digits=4)} "
-            f"cl={_fmt_int(getattr(signal, 'cluster_id', None))}"
-        )
         result = _record_status(record)
         result_suffix = "" if result == "dry_run" else f" | {result}"
         lines.append(
-            f"    {index:>2}. {system:<4} {intent.get('local_symbol', '-'):<14} "
+            f"    - {system:<4} {intent.get('local_symbol', '-'):<14} "
             f"{action:<7} {entry:<16} {stop:<15} "
-            f"risk {_fmt_cash(intent.get('total_risk')):>12}  "
-            f"{model} | {intent.get('exchange', '-')}{result_suffix}"
+            f"risk {_fmt_cash(intent.get('total_risk')):>12} "
+            f"| {intent.get('exchange', '-')}{result_suffix}"
         )
     return lines
 
