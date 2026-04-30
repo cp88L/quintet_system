@@ -22,6 +22,7 @@ from quintet.execution.models import (
     LastDayCloseoutIntent,
     ModifyOrderIntent,
     PlaceBracketIntent,
+    summarize_roll_entry,
 )
 from quintet.execution.serialize import to_plain
 from quintet.trading.models import TradePlan
@@ -176,6 +177,7 @@ class IbkrExecutor:
                     market_exit_order_id,
                 ],
                 "roll_order_ids": roll_order_ids,
+                "roll_summary": summarize_roll_entry(intent.roll_entry),
                 "intent": to_plain(intent),
             }
         )

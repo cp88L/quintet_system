@@ -14,6 +14,7 @@ from quintet.execution.models import (
     PlaceBracketIntent,
     ProtectiveStopSnapshot,
     RollEntryIntent,
+    summarize_roll_entry,
 )
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "PlaceBracketIntent",
     "ProtectiveStopSnapshot",
     "RollEntryIntent",
+    "summarize_roll_entry",
 ]

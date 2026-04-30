@@ -200,6 +200,20 @@ class ExecutionReport:
         )
 
 
+def summarize_roll_entry(roll_entry: RollEntryIntent | None) -> dict | None:
+    """Build the operator-facing roll fields stored in execution reports."""
+    if roll_entry is None:
+        return None
+    return {
+        "old_contract": roll_entry.old_local_symbol,
+        "new_contract": roll_entry.new_local_symbol,
+        "quantity": roll_entry.quantity,
+        "rspos": roll_entry.rspos,
+        "threshold": roll_entry.threshold,
+        "protective_stop_price": roll_entry.protective_stop_price,
+    }
+
+
 def summarize_execution_counts(
     *,
     submitted: list[dict],

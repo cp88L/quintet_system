@@ -164,6 +164,7 @@ def main() -> int:
         print(f"  skipped: {len(plan.skipped)}")
         print(f"  report mode: {report.mode}")
         print(f"  submitted: {report.counts.submitted}")
+        print(f"  roll submitted: {report.counts.roll_submitted}")
         print(f"  cancel requested: {report.counts.cancel_requested}")
         print(f"  modified: {report.counts.modified}")
         print(f"  reported only: {report.counts.reported_only}")

@@ -76,6 +76,7 @@ def _count_cards(report: dict) -> dbc.Row:
     counts = report.get("counts", {})
     items = [
         ("submitted", counts.get("submitted", 0), "success"),
+        ("roll submitted", counts.get("roll_submitted", 0), "primary"),
         ("cancel requested", counts.get("cancel_requested", 0), "warning"),
         ("modified", counts.get("modified", 0), "info"),
         ("reported only", counts.get("reported_only", 0), "secondary"),
@@ -193,14 +194,23 @@ def _submitted_section(report: dict) -> dbc.Card:
                     html.Td(record.get("order_id") or _format_order_ids(record)),
                     html.Td(_format_key(intent.get("key"))),
                     html.Td(intent.get("symbol", "")),
-                    html.Td(intent.get("local_symbol", "")),
+                    html.Td(_submitted_contract(record, intent)),
+                    html.Td(_submitted_roll_details(record)),
                     html.Td(intent.get("reason", "")),
                 ]
             )
         )
     return _table_section(
         "Submitted / Requested",
-        ["status", "order id(s)", "key", "symbol", "contract", "reason"],
+        [
+            "status",
+            "order id(s)",
+            "key",
+            "symbol",
+            "contract / roll",
+            "roll details",
+            "reason",
+        ],
         rows,
     )
 
@@ -243,7 +253,7 @@ def _roll_row(intent: dict) -> html.Tr:
             html.Td(_format_float(intent.get("threshold"))),
             html.Td(_format_float(intent.get("protective_stop_price"))),
             html.Td(
-                "Review candidate manually; live roll placement is deferred."
+                "Review roll candidate; no live roll order was submitted for this record."
             ),
         ]
     )
@@ -339,7 +349,60 @@ def _format_order_ids(record: dict) -> str:
     ids = record.get("order_ids")
     if isinstance(ids, list):
         return ", ".join(str(order_id) for order_id in ids)
+    parts = []
+    cancelled = record.get("cancelled_stop_order_id")
+    if cancelled:
+        parts.append(f"cancel {cancelled}")
+    closeout_ids = record.get("closeout_order_ids")
+    if isinstance(closeout_ids, list):
+        parts.append(
+            "closeout " + ", ".join(str(order_id) for order_id in closeout_ids)
+        )
+    roll_ids = record.get("roll_order_ids")
+    if isinstance(roll_ids, list) and roll_ids:
+        parts.append("roll " + ", ".join(str(order_id) for order_id in roll_ids))
+    if parts:
+        return "; ".join(parts)
     return ""
+
+
+def _submitted_contract(record: dict, intent: dict) -> str:
+    summary = _roll_summary(record)
+    if summary:
+        return f"{summary.get('old_contract', '')} -> {summary.get('new_contract', '')}"
+    return intent.get("local_symbol", "")
+
+
+def _submitted_roll_details(record: dict) -> str:
+    summary = _roll_summary(record)
+    if not summary:
+        return "-"
+    return (
+        f"qty {summary.get('quantity', '')} | "
+        f"RSpos {_format_float(summary.get('rspos'))} | "
+        f"threshold {_format_float(summary.get('threshold'))} | "
+        f"stop {_format_float(summary.get('protective_stop_price'))}"
+    )
+
+
+def _roll_summary(record: dict) -> dict | None:
+    summary = record.get("roll_summary")
+    if isinstance(summary, dict):
+        return summary
+    intent = record.get("intent", {})
+    if not isinstance(intent, dict):
+        return None
+    roll = intent.get("roll_entry")
+    if not isinstance(roll, dict):
+        return None
+    return {
+        "old_contract": roll.get("old_local_symbol"),
+        "new_contract": roll.get("new_local_symbol"),
+        "quantity": roll.get("quantity"),
+        "rspos": roll.get("rspos"),
+        "threshold": roll.get("threshold"),
+        "protective_stop_price": roll.get("protective_stop_price"),
+    }
 
 
 def _format_float(value) -> str:

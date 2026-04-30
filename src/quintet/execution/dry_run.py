@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from quintet.execution.models import AlertIntent, ExecutionReport, ExecutionStatus
+from quintet.execution.models import (
+    AlertIntent,
+    ExecutionReport,
+    ExecutionStatus,
+    LastDayCloseoutIntent,
+    summarize_roll_entry,
+)
 from quintet.execution.serialize import to_plain
 from quintet.trading.models import TradePlan
 
@@ -22,9 +28,12 @@ class DryRunExecutor:
             if isinstance(intent, AlertIntent):
                 alerts.append(payload)
             else:
-                submitted.append(
-                    {"status": ExecutionStatus.DRY_RUN.value, "intent": payload}
-                )
+                record = {"status": ExecutionStatus.DRY_RUN.value, "intent": payload}
+                if isinstance(intent, LastDayCloseoutIntent):
+                    roll_summary = summarize_roll_entry(intent.roll_entry)
+                    if roll_summary is not None:
+                        record["roll_summary"] = roll_summary
+                submitted.append(record)
         return ExecutionReport(
             generated_at=datetime.now(),
             mode=self.mode,

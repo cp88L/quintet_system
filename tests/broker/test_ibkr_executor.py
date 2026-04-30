@@ -180,6 +180,17 @@ class IbkrExecutorTests(TestCase):
         self.assertEqual(report.submitted[0]["cancelled_stop_order_id"], 77)
         self.assertEqual(report.submitted[0]["closeout_order_ids"], [900, 901])
         self.assertEqual(report.submitted[0]["roll_order_ids"], [902, 903])
+        self.assertEqual(
+            report.submitted[0]["roll_summary"],
+            {
+                "old_contract": "ESH6",
+                "new_contract": "ESM6",
+                "quantity": 1,
+                "rspos": 0.90,
+                "threshold": 0.85,
+                "protective_stop_price": 97.0,
+            },
+        )
         self.assertEqual(report.counts.roll_submitted, 1)
         self.assertEqual(report.events[0].status, ExecutionStatus.CANCEL_REQUESTED)
         self.assertEqual(report.events[1].status, ExecutionStatus.ROLL_SUBMITTED)

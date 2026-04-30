@@ -1,4 +1,5 @@
 import json
+import importlib
 import tempfile
 from pathlib import Path
 from unittest import TestCase
@@ -40,3 +41,33 @@ class TradeReportsDashboardTests(TestCase):
 
         self.assertEqual(plan["intents"][0]["reason"], "last_day_roll")
         self.assertEqual(report["counts"]["reported_only"], 1)
+
+    def test_roll_submitted_record_formats_operator_details(self) -> None:
+        create_app()
+        trade_reports = importlib.import_module("quintet.dashboard.pages.trade_reports")
+        record = {
+            "cancelled_stop_order_id": 189,
+            "closeout_order_ids": [190, 191],
+            "roll_order_ids": [192, 193],
+            "roll_summary": {
+                "old_contract": "ESM6",
+                "new_contract": "ESU6",
+                "quantity": 1,
+                "rspos": 0.9,
+                "threshold": 0.85,
+                "protective_stop_price": 6931.75,
+            },
+        }
+
+        self.assertEqual(
+            trade_reports._format_order_ids(record),
+            "cancel 189; closeout 190, 191; roll 192, 193",
+        )
+        self.assertEqual(
+            trade_reports._submitted_contract(record, {}),
+            "ESM6 -> ESU6",
+        )
+        self.assertEqual(
+            trade_reports._submitted_roll_details(record),
+            "qty 1 | RSpos 0.9000 | threshold 0.8500 | stop 6931.7500",
+        )

@@ -92,13 +92,14 @@ Add questions here instead of stopping unless continuing would risk orders, acco
    - Confirmed old position was flat, new position was long one `ESU6`, and order `193` remained open as the new protective stop.
    - Cleanup cancelled order `193`, flattened `ESU6` through live exit execution, and ended with `positions=0`, `open_orders=0`.
 
-## Remaining Slices
-
 12. **Operator/report polish for live rolls**
-   - Show live roll submissions separately in the CLI/dashboard counts.
-   - Include old contract, new contract, quantity, RSpos, threshold, and stop price in the execution report.
-   - Keep reported-only roll alerts visible for non-executed roll cases.
-   - Commit when complete.
+   - CLI summary now prints `roll submitted` separately from general submitted counts.
+   - Dashboard count cards now include `roll submitted`.
+   - Live and dry-run execution records now include `roll_summary` with old contract, new contract, quantity, RSpos, threshold, and protective stop price.
+   - Dashboard submitted rows now render closeout/roll order ids and roll summary details.
+   - Reported-only roll rows no longer say live roll placement is deferred.
+
+## Remaining Slices
 
 13. **Final full verification**
    - Run the full local test suite.
