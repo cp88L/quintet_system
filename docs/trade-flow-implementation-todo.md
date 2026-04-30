@@ -67,33 +67,36 @@ Add questions here instead of stopping unless continuing would risk orders, acco
 ## Remaining Slices
 
 8. **Live roll order builder**
-   - Convert `RollEntryIntent` into concrete IBKR order requests.
-   - Reuse the same broker-neutral fields already present on `RollEntryIntent`; do not reach into signal/funnel objects from execution.
-   - Build a new-contract parent entry and protective stop as a bracket.
+   - Treat `docs/trade-flow-architecture-spec.md` "Last-day exit + conditional roll" as the canonical source.
+   - Extend broker-neutral intent data as needed so execution has the existing stop order id, stop prices, order type, quantity, old contract, new contract, and OCA group inputs.
+   - Build the old-contract close side using Quartet's replace-stop OCA pattern: cancel existing stop, place replacement stop with `outsideRth=True`, `transmit=False`, and shared OCA group, then place old-contract `MKT outsideRth=False` exit with `transmit=True` and the same OCA group.
+   - Build the new-contract roll entry as a parent/child bracket: `MKT outsideRth=False` parent and `STP outsideRth=True` child stop.
    - Keep roll order construction in `broker/ibkr/orders.py`, not in trading logic.
-   - Remove `outsideRth` from futures orders unless explicitly reintroduced as configuration.
-   - Add unit tests for long equity roll bracket order construction.
+   - Keep normal new-signal orders unchanged unless the spec explicitly calls for roll-specific RTH/ETH behavior.
+   - Add unit tests for the replacement-stop OCA pair and the new-contract roll bracket.
    - Commit when complete.
 
 9. **Live roll executor wiring**
-   - Teach `IbkrExecutor` to submit `RollEntryIntent` instead of reporting it only.
-   - Sequence same-run roll as: old-contract `ExitPositionIntent` market exit, then new-contract roll bracket submission.
+   - Teach `IbkrExecutor` to submit the complete close-and-roll bundle instead of reporting it only.
+   - Sequence roll placement as one broker operation: cancel existing stop, submit replacement stop + RTH market exit OCA pair, then submit the RTH market roll-entry parent and protective child stop when a roll entry qualifies.
    - Preserve fail-fast behavior: if order construction or placement throws, record `roll_threw` and continue reporting the failure; do not silently fallback.
    - Add execution-report status/count coverage for roll-submitted and roll-threw outcomes.
-   - Add executor tests proving roll intents place exactly two new-contract orders.
+   - Add executor tests proving the full roll bundle places the expected old-contract OCA orders and new-contract bracket orders.
    - Commit when complete.
 
 10. **Live roll planning integration check**
-   - Verify maintenance emits old-contract last-day exit before roll entry in the same `TradePlan`.
+   - Verify maintenance emits a single close-and-roll bundle on `today >= last_day`, not disconnected old-exit and new-entry intents.
+   - Verify the bundle includes the current protective stop details from reconciled broker state.
    - Verify roll-enabled equity systems can roll, while commodity systems remain non-roll.
    - Verify missing candidate, same-contract candidate, low RSpos, missing RSpos, and missing stop still alert without order placement.
    - Commit when complete.
 
 11. **Paper Gateway roll validation**
    - Start only from a clean paper state unless explicitly testing manual/outside state.
-   - Create or simulate one old-contract position in a controlled configured equity future.
-   - Run a trade plan containing the old-contract market exit and new-contract roll bracket.
-   - Confirm the old position is flat, the new bracket exists or fills as expected, and cleanup leaves `positions: 0` and `open orders: 0`.
+   - Create or simulate one old-contract position plus protective stop in a controlled configured equity future.
+   - Run a trade plan containing the close-and-roll bundle.
+   - Confirm the old protective stop remains protective during ETH through the replacement-stop OCA order, the old RTH market exit is paired with that replacement stop, and the new RTH market entry has an attached protective stop.
+   - Cleanup must leave `positions: 0` and `open orders: 0`.
    - Record the tested contract, order ids, and cleanup result in this todo file.
    - Commit when complete.
 
