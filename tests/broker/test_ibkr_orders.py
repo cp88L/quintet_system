@@ -3,13 +3,18 @@ from unittest import TestCase
 from quintet.broker.ibkr.orders import (
     build_bracket_order_requests,
     build_exit_order_request,
+    build_last_day_closeout_order_requests,
     build_modify_order_request,
+    build_roll_entry_order_requests,
 )
 from quintet.broker.models import BrokerOrder
 from quintet.execution.models import (
     ExitPositionIntent,
+    LastDayCloseoutIntent,
     ModifyOrderIntent,
     PlaceBracketIntent,
+    ProtectiveStopSnapshot,
+    RollEntryIntent,
 )
 from quintet.trading.models import Side
 
@@ -33,6 +38,42 @@ def _intent(*, side: Side, system: str) -> PlaceBracketIntent:
         protective_limit_price=95.0 if side is Side.LONG else 100.0,
         risk_per_contract=250.0,
         total_risk=750.0,
+    )
+
+
+def _closeout_intent(*, side: Side = Side.LONG) -> LastDayCloseoutIntent:
+    return LastDayCloseoutIntent(
+        key=(100, "E4"),
+        side=side,
+        symbol="ES",
+        local_symbol="ESH6",
+        quantity=2,
+        exchange="CME",
+        currency="USD",
+        protective_stop=ProtectiveStopSnapshot(
+            order_id=7,
+            order_type="STP LMT",
+            aux_price=95.0 if side is Side.LONG else 105.0,
+            limit_price=94.75 if side is Side.LONG else 105.25,
+        ),
+        oca_group="ROLL_100_E4_20260430",
+    )
+
+
+def _roll_entry_intent(*, side: Side = Side.LONG) -> RollEntryIntent:
+    return RollEntryIntent(
+        old_key=(100, "E4"),
+        new_key=(200, "E4"),
+        side=side,
+        symbol="ES",
+        old_local_symbol="ESH6",
+        new_local_symbol="ESM6",
+        exchange="CME",
+        currency="USD",
+        quantity=2,
+        rspos=0.90,
+        threshold=0.85,
+        protective_stop_price=97.0 if side is Side.LONG else 103.0,
     )
 
 
@@ -142,3 +183,74 @@ class IbkrOrderTests(TestCase):
         self.assertEqual(request.order.totalQuantity, 2)
         self.assertEqual(request.order.orderRef, "trumpet")
         self.assertTrue(request.order.transmit)
+
+    def test_last_day_closeout_builds_replacement_stop_oca_pair(self) -> None:
+        requests = build_last_day_closeout_order_requests(
+            _closeout_intent(),
+            replacement_stop_order_id=51,
+            market_exit_order_id=52,
+        )
+
+        replacement = requests[0].order
+        exit_order = requests[1].order
+
+        self.assertEqual(requests[0].contract.conId, 100)
+        self.assertEqual(requests[0].contract.localSymbol, "ESH6")
+        self.assertEqual(replacement.action, "SELL")
+        self.assertEqual(replacement.orderType, "STP LMT")
+        self.assertEqual(replacement.totalQuantity, 2)
+        self.assertEqual(replacement.auxPrice, 95.0)
+        self.assertEqual(replacement.lmtPrice, 94.75)
+        self.assertEqual(replacement.parentId, 0)
+        self.assertEqual(replacement.ocaGroup, "ROLL_100_E4_20260430")
+        self.assertEqual(replacement.ocaType, 1)
+        self.assertFalse(replacement.transmit)
+        self.assertTrue(replacement.outsideRth)
+        self.assertEqual(replacement.orderRef, "piano")
+        self.assertEqual(exit_order.action, "SELL")
+        self.assertEqual(exit_order.orderType, "MKT")
+        self.assertEqual(exit_order.totalQuantity, 2)
+        self.assertEqual(exit_order.ocaGroup, "ROLL_100_E4_20260430")
+        self.assertEqual(exit_order.ocaType, 1)
+        self.assertTrue(exit_order.transmit)
+        self.assertFalse(exit_order.outsideRth)
+        self.assertEqual(exit_order.orderRef, "piano")
+
+    def test_short_last_day_closeout_flips_replacement_stop_and_exit(self) -> None:
+        requests = build_last_day_closeout_order_requests(
+            _closeout_intent(side=Side.SHORT),
+            replacement_stop_order_id=61,
+            market_exit_order_id=62,
+        )
+
+        self.assertEqual(requests[0].order.action, "BUY")
+        self.assertEqual(requests[0].order.auxPrice, 105.0)
+        self.assertEqual(requests[0].order.lmtPrice, 105.25)
+        self.assertEqual(requests[1].order.action, "BUY")
+
+    def test_roll_entry_builds_rth_market_parent_and_eth_stop_child(self) -> None:
+        requests = build_roll_entry_order_requests(
+            _roll_entry_intent(),
+            parent_order_id=71,
+            stop_order_id=72,
+        )
+
+        parent = requests[0].order
+        stop = requests[1].order
+
+        self.assertEqual(requests[0].contract.conId, 200)
+        self.assertEqual(requests[0].contract.localSymbol, "ESM6")
+        self.assertEqual(parent.action, "BUY")
+        self.assertEqual(parent.orderType, "MKT")
+        self.assertEqual(parent.totalQuantity, 2)
+        self.assertFalse(parent.transmit)
+        self.assertFalse(parent.outsideRth)
+        self.assertEqual(parent.orderRef, "piano")
+        self.assertEqual(stop.action, "SELL")
+        self.assertEqual(stop.orderType, "STP")
+        self.assertEqual(stop.totalQuantity, 2)
+        self.assertEqual(stop.auxPrice, 97.0)
+        self.assertEqual(stop.parentId, 71)
+        self.assertTrue(stop.transmit)
+        self.assertTrue(stop.outsideRth)
+        self.assertEqual(stop.orderRef, "piano")

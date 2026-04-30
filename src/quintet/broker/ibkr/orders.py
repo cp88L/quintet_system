@@ -11,8 +11,10 @@ from quintet.broker.models import BrokerOrder
 from quintet.config import VOICE_MAP
 from quintet.execution.models import (
     ExitPositionIntent,
+    LastDayCloseoutIntent,
     ModifyOrderIntent,
     PlaceBracketIntent,
+    RollEntryIntent,
 )
 
 
@@ -52,6 +54,56 @@ def build_bracket_order_requests(
     ]
 
 
+def build_last_day_closeout_order_requests(
+    intent: LastDayCloseoutIntent,
+    *,
+    replacement_stop_order_id: int,
+    market_exit_order_id: int,
+) -> list[IbkrOrderRequest]:
+    """Build the old-contract replacement-stop OCA pair for last-day closeout."""
+    contract = build_futures_contract_from_closeout(intent)
+    order_ref = VOICE_MAP[intent.key[1]]
+    return [
+        IbkrOrderRequest(
+            order_id=replacement_stop_order_id,
+            contract=contract,
+            order=build_replacement_stop_order(intent, order_ref=order_ref),
+        ),
+        IbkrOrderRequest(
+            order_id=market_exit_order_id,
+            contract=contract,
+            order=build_rth_market_closeout_order(intent, order_ref=order_ref),
+        ),
+    ]
+
+
+def build_roll_entry_order_requests(
+    intent: RollEntryIntent,
+    *,
+    parent_order_id: int,
+    stop_order_id: int,
+) -> list[IbkrOrderRequest]:
+    """Build the new-contract RTH market parent and protective stop child."""
+    contract = build_futures_contract_from_roll_entry(intent)
+    order_ref = VOICE_MAP[intent.new_key[1]]
+    return [
+        IbkrOrderRequest(
+            order_id=parent_order_id,
+            contract=contract,
+            order=build_roll_parent_order(intent, order_ref=order_ref),
+        ),
+        IbkrOrderRequest(
+            order_id=stop_order_id,
+            contract=contract,
+            order=build_roll_protective_stop_order(
+                intent,
+                parent_id=parent_order_id,
+                order_ref=order_ref,
+            ),
+        ),
+    ]
+
+
 def build_futures_contract(intent: PlaceBracketIntent) -> Contract:
     """Build the IBKR futures contract for a bracket intent."""
     contract = Contract()
@@ -61,6 +113,30 @@ def build_futures_contract(intent: PlaceBracketIntent) -> Contract:
     contract.exchange = intent.exchange
     contract.currency = intent.currency
     contract.localSymbol = intent.local_symbol
+    return contract
+
+
+def build_futures_contract_from_closeout(intent: LastDayCloseoutIntent) -> Contract:
+    """Build the IBKR futures contract for the old contract closeout."""
+    contract = Contract()
+    contract.conId = intent.key[0]
+    contract.symbol = intent.symbol
+    contract.secType = "FUT"
+    contract.exchange = intent.exchange
+    contract.currency = intent.currency
+    contract.localSymbol = intent.local_symbol
+    return contract
+
+
+def build_futures_contract_from_roll_entry(intent: RollEntryIntent) -> Contract:
+    """Build the IBKR futures contract for the new roll-entry contract."""
+    contract = Contract()
+    contract.conId = intent.new_key[0]
+    contract.symbol = intent.symbol
+    contract.secType = "FUT"
+    contract.exchange = intent.exchange
+    contract.currency = intent.currency
+    contract.localSymbol = intent.new_local_symbol
     return contract
 
 
@@ -125,6 +201,99 @@ def build_market_exit_order(intent: ExitPositionIntent) -> Order:
     order.tif = "GTC"
     order.outsideRth = True
     order.orderRef = VOICE_MAP[intent.key[1]]
+    return order
+
+
+def build_replacement_stop_order(
+    intent: LastDayCloseoutIntent,
+    *,
+    order_ref: str,
+) -> Order:
+    """Build the replacement protective stop held with the closeout OCA group."""
+    if intent.quantity <= 0:
+        raise ValueError("closeout quantity must be positive")
+    order = Order()
+    order.action = intent.side.protective_action
+    order.orderType = intent.protective_stop.order_type
+    order.totalQuantity = intent.quantity
+    _set_stop_limit_prices(
+        order,
+        stop_price=intent.protective_stop.aux_price,
+        limit_price=intent.protective_stop.limit_price,
+    )
+    order.parentId = 0
+    order.transmit = False
+    order.tif = "GTC"
+    order.outsideRth = True
+    order.ocaGroup = intent.oca_group
+    order.ocaType = 1
+    order.orderRef = order_ref
+    return order
+
+
+def build_rth_market_closeout_order(
+    intent: LastDayCloseoutIntent,
+    *,
+    order_ref: str,
+) -> Order:
+    """Build the RTH market exit that triggers the replacement-stop OCA pair."""
+    if intent.quantity <= 0:
+        raise ValueError("closeout quantity must be positive")
+    order = Order()
+    order.action = intent.side.exit_action
+    order.orderType = "MKT"
+    order.totalQuantity = intent.quantity
+    order.transmit = True
+    order.tif = "GTC"
+    order.outsideRth = False
+    order.ocaGroup = intent.oca_group
+    order.ocaType = 1
+    order.orderRef = order_ref
+    return order
+
+
+def build_roll_parent_order(
+    intent: RollEntryIntent,
+    *,
+    order_ref: str,
+) -> Order:
+    """Build the RTH market parent order for the new roll contract."""
+    if intent.quantity <= 0:
+        raise ValueError("roll quantity must be positive")
+    order = Order()
+    order.action = intent.side.entry_action
+    order.orderType = intent.parent_order_type
+    order.totalQuantity = intent.quantity
+    order.transmit = False
+    order.tif = "GTC"
+    order.outsideRth = False
+    order.orderRef = order_ref
+    return order
+
+
+def build_roll_protective_stop_order(
+    intent: RollEntryIntent,
+    *,
+    parent_id: int,
+    order_ref: str,
+) -> Order:
+    """Build the child protective stop for the new roll contract."""
+    if intent.quantity <= 0:
+        raise ValueError("roll quantity must be positive")
+    order = Order()
+    order.action = intent.side.protective_action
+    order.orderType = intent.protective_order_type
+    order.totalQuantity = intent.quantity
+    _set_stop_limit_prices(
+        order,
+        stop_price=intent.protective_stop_price,
+        limit_price=None,
+    )
+    order.parentId = parent_id
+    order.transmit = True
+    order.tif = "GTC"
+    order.outsideRth = True
+    order.orderRef = order_ref
     return order
 
 

@@ -64,17 +64,13 @@ Add questions here instead of stopping unless continuing would risk orders, acco
    - Improve manual/outside-system alert messages with relevant broker details.
    - Add tests for client-0 manual-order visibility assumptions.
 
-## Remaining Slices
-
 8. **Live roll order builder**
-   - Treat `docs/trade-flow-architecture-spec.md` "Last-day exit + conditional roll" as the canonical source.
-   - Extend broker-neutral intent data as needed so execution has the existing stop order id, stop prices, order type, quantity, old contract, new contract, and OCA group inputs.
-   - Build the old-contract close side using Quartet's replace-stop OCA pattern: cancel existing stop, place replacement stop with `outsideRth=True`, `transmit=False`, and shared OCA group, then place old-contract `MKT outsideRth=False` exit with `transmit=True` and the same OCA group.
-   - Build the new-contract roll entry as a parent/child bracket: `MKT outsideRth=False` parent and `STP outsideRth=True` child stop.
-   - Keep roll order construction in `broker/ibkr/orders.py`, not in trading logic.
-   - Keep normal new-signal orders unchanged unless the spec explicitly calls for roll-specific RTH/ETH behavior.
-   - Add unit tests for the replacement-stop OCA pair and the new-contract roll bracket.
-   - Commit when complete.
+   - Added broker-neutral last-day closeout intent data and protective-stop snapshot.
+   - Added old-contract replacement-stop OCA order builder using Quartet's closeout mechanics.
+   - Added new-contract RTH market roll parent and ETH protective stop child builder.
+   - Added unit tests for long/short closeout OCA orders and long roll-entry bracket orders.
+
+## Remaining Slices
 
 9. **Live roll executor wiring**
    - Teach `IbkrExecutor` to submit the complete close-and-roll bundle instead of reporting it only.

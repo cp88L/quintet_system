@@ -88,6 +88,16 @@ class ExitPositionIntent:
 
 
 @dataclass(frozen=True)
+class ProtectiveStopSnapshot:
+    """Existing protective stop data needed for last-day replacement OCA."""
+
+    order_id: int
+    order_type: str
+    aux_price: float
+    limit_price: float | None = None
+
+
+@dataclass(frozen=True)
 class RollEntryIntent:
     """Report-only intent describing a conditional roll entry."""
 
@@ -106,6 +116,23 @@ class RollEntryIntent:
     parent_order_type: str = "MKT"
     protective_order_type: str = "STP"
     reason: str = "last_day_roll"
+
+
+@dataclass(frozen=True)
+class LastDayCloseoutIntent:
+    """Intent to close an old contract at RTH open, optionally rolling forward."""
+
+    key: TradeKey
+    side: Side
+    symbol: str
+    local_symbol: str
+    quantity: int
+    exchange: str
+    currency: str
+    protective_stop: ProtectiveStopSnapshot
+    oca_group: str
+    roll_entry: RollEntryIntent | None = None
+    reason: str = "last_day"
 
 
 @dataclass(frozen=True)

@@ -9,8 +9,10 @@ from quintet.execution.models import (
     ExecutionReport,
     ExecutionStatus,
     ExitPositionIntent,
+    LastDayCloseoutIntent,
     ModifyOrderIntent,
     PlaceBracketIntent,
+    ProtectiveStopSnapshot,
     RollEntryIntent,
 )
 
@@ -23,7 +25,9 @@ __all__ = [
     "ExecutionReport",
     "ExecutionStatus",
     "ExitPositionIntent",
+    "LastDayCloseoutIntent",
     "ModifyOrderIntent",
     "PlaceBracketIntent",
+    "ProtectiveStopSnapshot",
     "RollEntryIntent",
 ]
