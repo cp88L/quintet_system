@@ -17,7 +17,7 @@ Rules for every slice:
 
 Add questions here instead of stopping unless continuing would risk orders, account safety, or signal/business-rule drift.
 
-- Live exit execution has unit coverage only. A true paper Gateway test requires deliberately opening and closing a filled position, which is possible but should be reviewed before making it part of the routine suite.
+- Live exit execution has ad hoc paper Gateway coverage from cleanup flows, but no routine live test. Decide later whether live order tests should become a maintained manual checklist or remain ad hoc only.
 - 2026-04-30 ad hoc paper validation opened one ES position and confirmed a protective stop could trigger and return the account to flat. This did not add a routine test.
 
 ## Completed Slices
@@ -83,16 +83,16 @@ Add questions here instead of stopping unless continuing would risk orders, acco
    - Commodity systems keep closeout-only behavior.
    - Missing candidate, same-contract candidate, low RSpos, missing RSpos, and missing stop keep the closeout and emit alerts instead of roll entry.
 
-## Remaining Slices
-
 11. **Paper Gateway roll validation**
-   - Start only from a clean paper state unless explicitly testing manual/outside state.
-   - Create or simulate one old-contract position plus protective stop in a controlled configured equity future.
-   - Run a trade plan containing the close-and-roll bundle.
-   - Confirm the old protective stop remains protective during ETH through the replacement-stop OCA order, the old RTH market exit is paired with that replacement stop, and the new RTH market entry has an attached protective stop.
-   - Cleanup must leave `positions: 0` and `open orders: 0`.
-   - Record the tested contract, order ids, and cleanup result in this todo file.
-   - Commit when complete.
+   - 2026-04-30 configured paper Gateway validation used ES current contract `ESM6` (`conId=649180678`) and upcoming contract `ESU6` (`conId=649180671`).
+   - Started from clean paper state: `positions=0`, `open_orders=0`.
+   - Opened old-contract long position with order `188`, then placed old protective `SELL STP LMT` order `189`.
+   - Executed one `LastDayCloseoutIntent` bundle through `IbkrExecutor`.
+   - Submitted replacement stop order `190`, RTH market closeout order `191`, RTH roll-entry parent order `192`, and new protective stop child order `193`.
+   - Confirmed old position was flat, new position was long one `ESU6`, and order `193` remained open as the new protective stop.
+   - Cleanup cancelled order `193`, flattened `ESU6` through live exit execution, and ended with `positions=0`, `open_orders=0`.
+
+## Remaining Slices
 
 12. **Operator/report polish for live rolls**
    - Show live roll submissions separately in the CLI/dashboard counts.
