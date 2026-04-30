@@ -147,6 +147,7 @@ def compute_system_tau(
     registry: ContractRegistry,
     paths: DataPaths,
     target_bars: int = LOOKBACK_WINDOW,
+    force: bool = False,
 ) -> dict:
     """Compute today's tau for `system`.
 
@@ -155,6 +156,9 @@ def compute_system_tau(
     last run), pools every product's lookback into one array, runs the
     Wilson walkdown, and writes `processed/{system}/_tau.json` with the
     snapshot.
+
+    `force=True` rebuilds the per-product lookback files even when their
+    newest expired contract marker still matches.
 
     Returns a dict with `tau`, pool size, positive count, gate_pass, the
     diagnostic fields from `calculate_threshold`, the contributing
@@ -165,7 +169,7 @@ def compute_system_tau(
     label_col = f"Label_{label}"
 
     lookbacks, status_counts = refresh_system_lookback(
-        system, today, registry, paths, target_bars
+        system, today, registry, paths, target_bars, force=force
     )
 
     base = {

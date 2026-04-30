@@ -27,7 +27,13 @@ class TauStage(PipelineStage):
             self._run_system(system, ctx)
 
     def _run_system(self, system: str, ctx: PipelineContext) -> None:
-        result = compute_system_tau(system, ctx.today, ctx.registry, ctx.paths)
+        result = compute_system_tau(
+            system,
+            ctx.today,
+            ctx.registry,
+            ctx.paths,
+            force=getattr(ctx.args, "force_tau", False),
+        )
         ctx.tau_results[system] = result
         target = PRECISION[system]
         n_pool = result["n_pool"]

@@ -28,6 +28,7 @@ Usage:
     python -m quintet.run --no-fetch            # skip IBKR fetch
     python -m quintet.run --no-indicators       # skip data-rebuild stages
     python -m quintet.run --force-full-year     # rebuild full-year window
+    python -m quintet.run --force-tau           # force tau/lookback rebuild
     python -m quintet.run --trim-today          # drop today's partial bar
     python -m quintet.run --dry-run             # write broker-neutral trade reports
     python -m quintet.run --live                # submit supported trade intents
@@ -93,6 +94,11 @@ def _parse_args() -> argparse.Namespace:
             "and predictions. Use mid-session in dev to avoid IBKR's "
             "still-open partial bar."
         ),
+    )
+    parser.add_argument(
+        "--force-tau",
+        action="store_true",
+        help="Force tau/lookback rebuild instead of using cached per-product lookbacks.",
     )
     execution = parser.add_mutually_exclusive_group()
     execution.add_argument(

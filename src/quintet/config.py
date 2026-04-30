@@ -15,6 +15,16 @@ PORT = 4002
 CLIENT_ID = 0
 
 # =============================================================================
+# SCHEDULER
+# =============================================================================
+# Daily EOD break run. America/Chicago matches CME local time.
+SCHEDULER_TIMEZONE = "America/Chicago"
+SCHEDULER_RUN_TIME = "16:30"
+SCHEDULER_WEEKDAYS = (0, 1, 2, 3, 4)  # Monday-Friday
+SCHEDULER_MODE = "live"  # "live" or "dry-run"
+SCHEDULER_EXTRA_ARGS: tuple[str, ...] = ()
+
+# =============================================================================
 # TRADING SYSTEMS
 # =============================================================================
 # Keyed by alias. Label alone can't key — label-4 appears in C4, CS4, and E4.

@@ -223,12 +223,13 @@ def refresh_product_lookback(
     registry: ContractRegistry,
     paths: DataPaths,
     target_bars: int = LOOKBACK_WINDOW,
+    force: bool = False,
 ) -> tuple[pd.DataFrame, str]:
     """Build-or-load the per-product lookback and persist it on rebuild.
 
     Returns `(df, status)` where `status` is one of:
       - "cached"     — on-disk file matches newest expired, loaded as-is
-      - "rebuilt"    — rebuilt and rewritten because expired set advanced
+      - "rebuilt"    — rebuilt and rewritten because expired set advanced or force=True
       - "no_eligible" — product has no expired contracts yet
     """
     contracts = _eligible_contracts(
@@ -241,7 +242,7 @@ def refresh_product_lookback(
     lookback_path = paths.lookback_dir(system) / f"{product}.parquet"
     rebuild, _reason = needs_rebuild(lookback_path, newest_local)
 
-    if not rebuild:
+    if not force and not rebuild:
         return pd.read_parquet(lookback_path), "cached"
 
     df = build_product_lookback(system, product, today, registry, paths, target_bars)
@@ -260,6 +261,7 @@ def refresh_system_lookback(
     registry: ContractRegistry,
     paths: DataPaths,
     target_bars: int = LOOKBACK_WINDOW,
+    force: bool = False,
 ) -> tuple[dict[str, pd.DataFrame], dict[str, int]]:
     """Refresh per-product lookbacks for all products in `system`.
 
@@ -277,7 +279,7 @@ def refresh_system_lookback(
     ):
         product = product_dir.name
         df, status = refresh_product_lookback(
-            system, product, today, registry, paths, target_bars
+            system, product, today, registry, paths, target_bars, force=force
         )
         counts[status] = counts.get(status, 0) + 1
         if not df.empty:
@@ -290,9 +292,12 @@ def refresh_all_lookbacks(
     registry: ContractRegistry,
     paths: DataPaths,
     target_bars: int = LOOKBACK_WINDOW,
+    force: bool = False,
 ) -> dict[str, tuple[dict[str, pd.DataFrame], dict[str, int]]]:
     """Refresh `_lookback/*.parquet` across every system. {system: (lookbacks, counts)}."""
     return {
-        system: refresh_system_lookback(system, today, registry, paths, target_bars)
+        system: refresh_system_lookback(
+            system, today, registry, paths, target_bars, force=force
+        )
         for system in SYSTEMS
     }
