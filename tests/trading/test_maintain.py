@@ -1,8 +1,8 @@
 from datetime import date
 from unittest import TestCase
 
-from quintet.broker.models import BrokerPosition, ContractMeta
-from quintet.execution.models import AlertIntent, ExitPositionIntent
+from quintet.broker.models import BrokerOrder, BrokerPosition, ContractMeta
+from quintet.execution.models import AlertIntent, LastDayCloseoutIntent
 from quintet.trading.maintain import plan_maintenance
 from quintet.trading.models import ReconciledTradeState, Side
 
@@ -15,6 +15,24 @@ def _position() -> BrokerPosition:
         local_symbol="ESH6",
         quantity=2,
         avg_cost=100.0,
+    )
+
+
+def _stop() -> BrokerOrder:
+    return BrokerOrder(
+        order_id=7,
+        con_id=100,
+        symbol="ES",
+        local_symbol="ESH6",
+        action="SELL",
+        order_type="STP LMT",
+        quantity=2,
+        status="Submitted",
+        exchange="CME",
+        currency="USD",
+        system="E4",
+        aux_price=95.0,
+        limit_price=94.75,
     )
 
 
@@ -33,7 +51,10 @@ def _meta(*, last_day: date | None) -> ContractMeta:
 
 class MaintenanceTests(TestCase):
     def test_last_day_position_generates_exit_intent(self) -> None:
-        state = ReconciledTradeState(positions_by_key={(100, "E4"): _position()})
+        state = ReconciledTradeState(
+            positions_by_key={(100, "E4"): _position()},
+            protective_stops_by_key={(100, "E4"): _stop()},
+        )
 
         plan = plan_maintenance(
             state,
@@ -43,14 +64,20 @@ class MaintenanceTests(TestCase):
 
         self.assertEqual(len(plan.intents), 1)
         intent = plan.intents[0]
-        self.assertIsInstance(intent, ExitPositionIntent)
+        self.assertIsInstance(intent, LastDayCloseoutIntent)
         self.assertEqual(intent.side, Side.LONG)
         self.assertEqual(intent.quantity, 2)
         self.assertEqual(intent.exchange, "CME")
         self.assertEqual(intent.reason, "last_day")
+        self.assertEqual(intent.protective_stop.order_id, 7)
+        self.assertEqual(intent.protective_stop.aux_price, 95.0)
+        self.assertEqual(intent.oca_group, "ROLL_100_E4_20260619")
 
     def test_before_last_day_does_not_exit(self) -> None:
-        state = ReconciledTradeState(positions_by_key={(100, "E4"): _position()})
+        state = ReconciledTradeState(
+            positions_by_key={(100, "E4"): _position()},
+            protective_stops_by_key={(100, "E4"): _stop()},
+        )
 
         plan = plan_maintenance(
             state,

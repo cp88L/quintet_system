@@ -76,14 +76,14 @@ Add questions here instead of stopping unless continuing would risk orders, acco
    - Added `roll_submitted` / `roll_threw` report statuses and roll-submitted counts.
    - Added executor tests proving the expected old-contract OCA orders and new-contract bracket orders are placed.
 
-## Remaining Slices
-
 10. **Live roll planning integration check**
-   - Verify maintenance emits a single close-and-roll bundle on `today >= last_day`, not disconnected old-exit and new-entry intents.
-   - Verify the bundle includes the current protective stop details from reconciled broker state.
-   - Verify roll-enabled equity systems can roll, while commodity systems remain non-roll.
-   - Verify missing candidate, same-contract candidate, low RSpos, missing RSpos, and missing stop still alert without order placement.
-   - Commit when complete.
+   - Maintenance now emits a single `LastDayCloseoutIntent` bundle on `today >= last_day`.
+   - The bundle includes current protective stop id, type, prices, and deterministic OCA group.
+   - Roll-enabled equity systems attach qualifying next-contract roll entries to that bundle.
+   - Commodity systems keep closeout-only behavior.
+   - Missing candidate, same-contract candidate, low RSpos, missing RSpos, and missing stop keep the closeout and emit alerts instead of roll entry.
+
+## Remaining Slices
 
 11. **Paper Gateway roll validation**
    - Start only from a clean paper state unless explicitly testing manual/outside state.

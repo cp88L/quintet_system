@@ -7,7 +7,12 @@ from datetime import date
 
 from quintet.broker.models import ContractMeta
 from quintet.config import SYSTEM_SIDE
-from quintet.execution.models import AlertIntent, CancelOrderIntent, ExitPositionIntent
+from quintet.execution.models import (
+    AlertIntent,
+    CancelOrderIntent,
+    LastDayCloseoutIntent,
+    ProtectiveStopSnapshot,
+)
 from quintet.trading.models import MaintenancePlan, ReconciledTradeState, Side
 
 
@@ -40,8 +45,41 @@ def plan_maintenance(
             )
             continue
         if today >= meta.last_day:
+            stop = state.protective_stops_by_key.get(key)
+            if stop is None or stop.aux_price is None:
+                intents.append(
+                    AlertIntent(
+                        code="missing_protective_stop",
+                        message=(
+                            f"{position.local_symbol} broker position has no "
+                            "priced protective stop for last-day closeout. "
+                            "No order was sent."
+                        ),
+                        key=key,
+                        operator_action=(
+                            "Verify or place the protective stop manually before "
+                            "the last-day closeout."
+                        ),
+                    )
+                )
+                continue
+            order_type = _enum_value(stop.order_type)
+            if order_type == "STP LMT" and stop.limit_price is None:
+                intents.append(
+                    AlertIntent(
+                        code="missing_protective_stop_limit",
+                        message=(
+                            f"{position.local_symbol} protective stop "
+                            f"{stop.order_id} is STP LMT with no limit price. "
+                            "No order was sent."
+                        ),
+                        key=key,
+                        operator_action="Review the protective stop order manually.",
+                    )
+                )
+                continue
             intents.append(
-                ExitPositionIntent(
+                LastDayCloseoutIntent(
                     key=key,
                     side=Side.from_config(SYSTEM_SIDE[key[1]]),
                     symbol=position.symbol,
@@ -49,6 +87,13 @@ def plan_maintenance(
                     quantity=int(abs(position.quantity)),
                     exchange=meta.exchange,
                     currency=meta.currency,
+                    protective_stop=ProtectiveStopSnapshot(
+                        order_id=stop.order_id,
+                        order_type=order_type,
+                        aux_price=stop.aux_price,
+                        limit_price=stop.limit_price,
+                    ),
+                    oca_group=f"ROLL_{position.con_id}_{key[1]}_{today:%Y%m%d}",
                     reason="last_day",
                 )
             )
@@ -104,3 +149,7 @@ def plan_maintenance(
             )
         )
     return MaintenancePlan(intents=intents)
+
+
+def _enum_value(value: object) -> str:
+    return str(getattr(value, "value", value))

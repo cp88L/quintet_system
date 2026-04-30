@@ -30,15 +30,14 @@ def plan_trade_flow(ctx, broker_state: BrokerState) -> TradePlan:
         today=ctx.today,
         contract_meta=contract_meta,
     )
-    roll_intents = plan_roll_entries(
+    maintenance_intents = plan_roll_entries(
         maintenance.intents,
         roll_candidates_from_context(ctx),
     )
-    if roll_intents:
-        maintenance = MaintenancePlan(
-            generated_at=maintenance.generated_at,
-            intents=[*maintenance.intents, *roll_intents],
-        )
+    maintenance = MaintenancePlan(
+        generated_at=maintenance.generated_at,
+        intents=maintenance_intents,
+    )
     signals = candidates_from_context(ctx)
     risk_state = risk_state_from_context(ctx, broker_state, reconciled)
     return build_trade_plan(
