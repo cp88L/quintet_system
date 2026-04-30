@@ -57,10 +57,12 @@ Add questions here instead of stopping unless continuing would risk orders, acco
    - Add broker-state-to-plan tests for missing stop alerts.
    - Add broker-state-to-plan tests for manual/outside-system order alerts.
 
+7. **Manual/outside-system trade hardening**
+   - Keep handling report-only.
+   - Add `operator_action` to alert reports.
+   - Improve manual/outside-system alert messages with relevant broker details.
+   - Add tests for client-0 manual-order visibility assumptions.
+
 ## Remaining Slices
 
-7. **Manual/outside-system trade hardening**
-   - Keep handling simple and report-only unless explicitly approved.
-   - Improve alert messages and report fields for operator action.
-   - Add tests around client-0 visibility assumptions.
-   - Commit when complete.
+No remaining implementation slices.

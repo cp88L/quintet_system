@@ -53,6 +53,7 @@ def plan_roll_entries(
                     code="roll_candidate_missing",
                     message=f"{intent.symbol} has no roll candidate for {system}",
                     key=intent.key,
+                    operator_action="Review current-contract funnel data.",
                 )
             )
             continue
@@ -65,6 +66,7 @@ def plan_roll_entries(
                         f"{intent.local_symbol}"
                     ),
                     key=intent.key,
+                    operator_action="Wait for the active contract to advance.",
                 )
             )
             continue
@@ -74,6 +76,7 @@ def plan_roll_entries(
                     code="roll_rspos_missing",
                     message=f"{candidate.local_symbol} has no RSpos for roll entry",
                     key=intent.key,
+                    operator_action="Review processed signal data for RSpos.",
                 )
             )
             continue
@@ -89,6 +92,7 @@ def plan_roll_entries(
                     ),
                     key=intent.key,
                     level=AlertLevel.INFO,
+                    operator_action="No action; RSpos is below the roll threshold.",
                 )
             )
             continue
@@ -98,6 +102,7 @@ def plan_roll_entries(
                     code="roll_stop_missing",
                     message=f"{candidate.local_symbol} has no roll stop price",
                     key=intent.key,
+                    operator_action="Review support/resistance data for the stop.",
                 )
             )
             continue

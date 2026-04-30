@@ -116,6 +116,7 @@ class AlertIntent:
     message: str
     key: TradeKey | None = None
     level: AlertLevel = AlertLevel.WARNING
+    operator_action: str | None = None
 
 
 @dataclass(frozen=True)

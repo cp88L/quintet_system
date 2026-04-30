@@ -158,6 +158,8 @@ class BrokerStateScenarioTests(TestCase):
         intent = plan.intents[0]
         self.assertIsInstance(intent, AlertIntent)
         self.assertEqual(intent.code, "missing_protective_stop")
+        self.assertIn("No order was sent", intent.message)
+        self.assertIn("protective stop manually", intent.operator_action)
 
     def test_manual_order_without_system_reports_external_order_alert(self) -> None:
         state = _broker_state(
@@ -178,3 +180,6 @@ class BrokerStateScenarioTests(TestCase):
         intent = plan.intents[0]
         self.assertIsInstance(intent, AlertIntent)
         self.assertEqual(intent.code, "external_or_unclassified_order")
+        self.assertIn("action=BUY", intent.message)
+        self.assertIn("type=LMT", intent.message)
+        self.assertEqual(intent.operator_action, "Review the outside order manually.")

@@ -33,6 +33,9 @@ def plan_maintenance(
                         "for maintenance exit planning"
                     ),
                     key=key,
+                    operator_action=(
+                        "Fix contract metadata before relying on last-day exits."
+                    ),
                 )
             )
             continue
@@ -61,8 +64,15 @@ def plan_maintenance(
         intents.append(
             AlertIntent(
                 code="missing_protective_stop",
-                message=f"{position.local_symbol} has a broker position with no stop",
+                message=(
+                    f"{position.local_symbol} broker position has no protective "
+                    f"stop: account={position.account}, con_id={position.con_id}, "
+                    f"quantity={position.quantity:g}. No order was sent."
+                ),
                 key=None,
+                operator_action=(
+                    "Verify or place the protective stop manually before the next run."
+                ),
             )
         )
     for position in state.unknown_system_positions:
@@ -71,17 +81,26 @@ def plan_maintenance(
                 code="unknown_system_position",
                 message=(
                     f"{position.local_symbol} has broker position "
-                    "with no unique system attribution"
+                    "with no unique system attribution. No order was sent."
                 ),
                 key=None,
+                operator_action=(
+                    "Review manual position attribution and protective stops."
+                ),
             )
         )
     for order in state.external_or_unclassified_orders:
         intents.append(
             AlertIntent(
                 code="external_or_unclassified_order",
-                message=f"Order {order.order_id} on {order.local_symbol} is unclassified",
+                message=(
+                    f"Order {order.order_id} on {order.local_symbol} is outside "
+                    f"system management: action={order.action}, "
+                    f"type={order.order_type}, quantity={order.quantity}, "
+                    f"status={order.status}. No order was sent."
+                ),
                 key=(order.con_id, order.system) if order.system else None,
+                operator_action="Review the outside order manually.",
             )
         )
     return MaintenancePlan(intents=intents)

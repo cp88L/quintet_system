@@ -105,7 +105,7 @@ def _alerts_section(report: dict) -> dbc.Card:
                 html.Td(alert.get("code", "-")),
                 html.Td(_format_key(alert.get("key"))),
                 html.Td(alert.get("message", "")),
-                html.Td(_alert_action(alert.get("code", ""))),
+                html.Td(_alert_action(alert)),
             ]
         )
         for alert in alerts
@@ -302,7 +302,11 @@ def _pill(label: str, value: int) -> html.Span:
     )
 
 
-def _alert_action(code: str) -> str:
+def _alert_action(alert: dict) -> str:
+    operator_action = alert.get("operator_action")
+    if operator_action:
+        return operator_action
+    code = alert.get("code", "")
     actions = {
         "external_or_unclassified_order": "Review outside order; no action sent.",
         "missing_last_day_metadata": "Fix contract metadata before relying on exits.",
