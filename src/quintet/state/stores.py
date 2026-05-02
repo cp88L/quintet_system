@@ -26,8 +26,11 @@ class ReportStore:
     def write_trade_plan(self, plan) -> Path:
         return self._write(self.trade_plan_path, plan)
 
-    def write_execution_report(self, report) -> Path:
-        return self._write(self.execution_report_path, report)
+    def write_execution_report(self, report, *, broker_state=None) -> Path:
+        payload = _to_plain(report)
+        if broker_state is not None:
+            payload["broker_state"] = _to_plain(broker_state)
+        return self._write(self.execution_report_path, payload)
 
     def _write(self, path: Path, payload) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)

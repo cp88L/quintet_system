@@ -320,6 +320,18 @@ Are there orphaned protective stops?
 Does every open position have a protective stop? (alert only)
 ```
 
+#### Open issue: roll-target indicator scope
+
+The roll bundle's gating filter (`new_contract.RSpos_N`) and the new contract's
+protective stop (`new_contract.Sup_N` / `Res_N`) require the roll-target
+contract's processed parquet to exist with current indicator values. Quintet's
+default daily fetch/process scope (`_build_active_locals`) only includes
+contracts whose scan window contains today, which **excludes** the next
+contract during the roll window. The proper architectural fix for this is
+open work; do not assume the next contract's indicators are available without
+addressing it. `ROLL_LOOKAHEAD_DAYS = 5` in config is reporting-only (held
+position countdown), not a data-scope solution.
+
 #### Last-day exit + conditional roll
 
 The IBKR adapter reads each held contract's `liquidHours`, parses the next
@@ -355,10 +367,24 @@ LastDayCloseoutIntent
     action     = SELL (long) | BUY (short)
     transmit   = True
     oca_group  = same as replacement stop
-  roll_entry:                # populated only if ROLL_ENABLED[s] AND
-                             # new_contract.RSpos_N >= ROLL_RSPOS_MIN[s]
+  roll_entry:                # populated only if ROLL_ENABLED[s] AND the
+                             # side-aware RSpos filter passes:
+                             #   long  side: new_contract.RSpos_N >= ROLL_RSPOS_MIN[s]
+                             #   short side: new_contract.RSpos_N <= ROLL_RSPOS_MAX[s]
+                             # RSpos = (Settle - Sup) / (Res - Sup), so high RSpos
+                             # = strong (good for long roll-in), low RSpos = weak
+                             # (good for short roll-in). Quintet's only short
+                             # system (CS4) has ROLL_ENABLED = False, so
+                             # ROLL_RSPOS_MAX is not needed in the v1 config —
+                             # the side-aware gating is documented here so a
+                             # future short system with ROLL_ENABLED = True is
+                             # implemented correctly.
     new_local_symbol
     new_con_id
+    quantity                 # inherited unchanged from the exiting position;
+                             # NOT a fresh free-equity sizing call.
+                             # Matches every final_*.ipynb backtest:
+                             # ROLL_KEEP_UNITS = "keep".
     parent:
       order_type = "MKT"
       outsideRth = False
@@ -371,15 +397,19 @@ LastDayCloseoutIntent
       tif        = "GTC"
       transmit   = True
       parentId   = parent.order_id
+      action     = SELL (long) | BUY (short)
       aux_price  = new_contract.Sup_N (long) | new_contract.Res_N (short)
 ```
 
 Mechanics:
 
-- The close side uses Quartet's replace-stop pattern: cancel the existing
-  protective stop, place a replacement protective stop with the OCA group and
-  `transmit=False`, then place the market exit with the same OCA group and
-  `transmit=True`.
+- The close side uses the cancel-and-replace OCA pattern verified in
+  `quartet/place_orders/test_order_tracking.py:870-910`: cancel the existing
+  protective stop, place a replacement stop with `parent_id=0`,
+  `transmit=False`, and `ocaGroup` set, then place the market exit with
+  `transmit=True` and the same `ocaGroup`. IBKR holds the replacement stop
+  until the second order arrives, then transmits both — they bind into the
+  OCA group on the exchange.
 - Whichever fills first (the replacement stop during ETH, or the market exit
   at RTH open) cancels the other.
 - The roll entry, when present, is a parent/child bracket with a `MKT
@@ -462,18 +492,26 @@ protective action = BUY
 #### Risk sizing (pooled equity, pooled risk)
 
 ```text
-portfolio_risk = sum over ALL open positions across ALL systems of
-                 (current_price - stop_price) / price_magnifier * multiplier * |qty|
-                 (sign-adjusted for short positions)
+For each open position:
+  long  position: risk = max(0, current_price - stop_price) / pmag * mult * |qty|
+  short position: risk = max(0, stop_price - current_price) / pmag * mult * |qty|
 
-free_equity = net_liquidation - portfolio_risk
-
-budget[s]   = max(0, free_equity * HEAT[s])
-
-risk_per_contract = abs(entry_price - stop_price) / price_magnifier * multiplier
-
-quantity    = floor(budget[s] / risk_per_contract)
+portfolio_risk    = sum of position risks across ALL open positions and systems
+free_equity       = net_liquidation - portfolio_risk
+budget[s]         = max(0, free_equity * HEAT[s])
+risk_per_contract = abs(entry_price - stop_price) / pmag * mult
+quantity          = floor(budget[s] / risk_per_contract)
 ```
+
+Side-awareness on `portfolio_risk` matters: quartet's
+`calculate_position_risk` is long-only and silently under-counts short risk
+if ported as-is. For a CS4 short with `current=158, stop=165`, quartet's
+`if current_price <= stop_price: return 0.0` guard returns zero — but the
+position is at risk by `(165 - 158)` per contract. Quintet must implement
+the side-aware version above; do not copy quartet's function directly.
+
+`risk_per_contract` (sizing new entries) uses `abs(entry - stop)` and is
+already side-neutral.
 
 There is one pooled equity account and one pooled risk number. `HEAT[s]`
 is the per-system fraction applied to the *same* free-equity pool — weights
@@ -585,6 +623,14 @@ class BrokerGateway:
 returned `ExecutionResult` reports synchronous outcomes only (submitted,
 threw, or cancel/modify acknowledged at the API level). Asynchronous
 callbacks land in a session-scoped buffer accessible via the gateway.
+
+`get_next_order_ids(count)` is a thin local wrapper, not a batch broker
+call. IBKR exposes only a single `nextValidId` callback at connection; from
+that seed each subsequent id is produced by incrementing a local counter.
+The gateway implementation is a loop over quartet's single-id allocator
+(`unified_client.py:476-486`). The batch signature is a convenience so the
+planner can claim, e.g., 4 ids for a roll bundle in one call rather than
+threading the counter through caller code.
 
 IBKR implementation details stay inside `broker/ibkr/`.
 
@@ -869,8 +915,9 @@ quintet:
 Order construction
   Keep: parent/child bracket mechanics, transmit=False/True.
   Rewrite: side-aware actions for long and short systems.
-  Add:    MKT outsideRth=False parent for roll entries; Quartet replace-stop
-          OCA pattern for the roll exit.
+  Add:    MKT outsideRth=False parent for roll entries; cancel-and-replace
+          OCA pattern for the roll exit, mirroring
+          quartet/place_orders/test_order_tracking.py:870-910.
 
 Order classification
   Keep: classify entry, pending protective stop, position protective stop,
@@ -895,6 +942,12 @@ Risk budget arithmetic
   Keep: portfolio risk and available risk concepts.
   Rewrite: pooled equity and pooled risk; HEAT[s] is the per-system fraction
            applied to the shared free-equity pool.
+
+Position-risk calculation
+  Keep: zero risk past the stop, dollar-distance * multiplier * |qty|.
+  Rewrite: side-aware. quartet's calculate_position_risk is long-only and
+           silently under-counts short risk if ported directly. CS4 needs
+           max(0, stop - current); long systems use max(0, current - stop).
 ```
 
 ### Write Fresh
@@ -1152,7 +1205,8 @@ build IBKR Contract from intent
 build side-aware entry order
 build side-aware protective stop order
 build MKT outsideRth=False exit and replace-stop OCA pair
-build MKT outsideRth=False parent + STP child for roll entries
+   (mirror quartet/place_orders/test_order_tracking.py:870-910)
+build MKT outsideRth=False parent + STP LMT child for roll entries
 allocate order ids
 place parent with transmit=False, child with transmit=True
 cancel order
@@ -1206,7 +1260,10 @@ These are intentionally outside the first version.
    gated by tick-rounded value change.
 8. When a held contract's next RTH trading day is on or beyond `last_day`,
    the EOD/break run stages the RTH-open closeout. Equities roll conditionally
-   on `ROLL_ENABLED[s]` and `RSpos_N`. Commodities never roll.
+   on `ROLL_ENABLED[s]` and `RSpos_N`. Commodities never roll. The roll entry
+   inherits the exiting position's quantity unchanged (`ROLL_KEEP_UNITS =
+   "keep"` in every final_*.ipynb backtest); do not re-size from current
+   free-equity at roll time.
 9. Order mechanics for the close-and-roll use Quartet's replace-stop OCA
    pattern: cancel the existing stop, place a replacement stop with
    `transmit=False`, then place the `MKT outsideRth=False` exit with

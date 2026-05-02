@@ -60,6 +60,12 @@ EXECUTION_LOOKBACK_HOURS = 48
 # =============================================================================
 ROLL_ENABLED   = {"C4": False, "CS4": False, "E4": True, "E7": True, "E13": True}
 ROLL_RSPOS_MIN = {"E4": 0.85, "E7": 0.85, "E13": 0.15}
+# Reporting horizon for last_day countdown (held position warnings).
+# Held positions whose last_day is within this many calendar days are
+# surfaced in the run report so the operator can see roll/exit events
+# coming. NOT used to auto-extend the daily fetch/process scope —
+# the proper data-scope fix for roll-target indicators is open work.
+ROLL_LOOKAHEAD_DAYS = 5
 
 # =============================================================================
 # ORDER PLACEMENT

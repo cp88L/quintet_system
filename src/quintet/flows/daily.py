@@ -57,7 +57,7 @@ def run_trade_dry_run(
     """Run broker-neutral trade planning without broker side effects."""
     plan = plan_trade_flow(ctx, broker_state)
     report = DryRunExecutor().execute(plan)
-    write_trade_reports(ctx, plan, report)
+    write_trade_reports(ctx, plan, report, broker_state=broker_state)
     return plan, report
 
 
@@ -71,7 +71,7 @@ def run_trade_live(
         broker_state = client.collect_state()
         plan = plan_trade_flow(ctx, broker_state)
         report = IbkrExecutor().execute_connected(plan, client)
-        write_trade_reports(ctx, plan, report)
+        write_trade_reports(ctx, plan, report, broker_state=broker_state)
         return broker_state, plan, report
     finally:
         client.disconnect_and_stop()
@@ -170,8 +170,14 @@ def _latest_processed_close(ctx, *, system: str, symbol: str, local_symbol: str)
     return float(df.iloc[-1]["close"])
 
 
-def write_trade_reports(ctx, plan: TradePlan, report: ExecutionReport) -> None:
+def write_trade_reports(
+    ctx,
+    plan: TradePlan,
+    report: ExecutionReport,
+    *,
+    broker_state: BrokerState | None = None,
+) -> None:
     """Write latest trade-flow artifacts for dashboard/operator inspection."""
     store = ReportStore(ctx.paths.base / "reports")
     store.write_trade_plan(plan)
-    store.write_execution_report(report)
+    store.write_execution_report(report, broker_state=broker_state)

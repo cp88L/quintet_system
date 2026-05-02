@@ -11,7 +11,7 @@ from quintet.dashboard.data.loader import (
     load_latest_trade_plan,
 )
 
-dash.register_page(__name__, path="/trade", name="Trade Reports", order=3)
+dash.register_page(__name__, path="/trade", name="Trade Reports", order=6)
 
 
 def layout() -> dbc.Container:

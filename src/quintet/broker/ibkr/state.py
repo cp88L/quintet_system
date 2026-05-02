@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import threading
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from ibapi.client import EClient
 from ibapi.common import OrderId
 from ibapi.contract import Contract
+from ibapi.execution import ExecutionFilter
 from ibapi.order import Order
 from ibapi.order_state import OrderState
 from ibapi.wrapper import EWrapper
@@ -21,11 +22,13 @@ from quintet.broker.ibkr.mapper import (
 )
 from quintet.broker.models import (
     AccountState,
+    BrokerFill,
     BrokerError,
     BrokerErrorSeverity,
     BrokerOrder,
     BrokerPosition,
     BrokerState,
+    ContractMeta,
 )
 
 
@@ -40,6 +43,7 @@ class IbkrStateClient(EWrapper, EClient):
         self._orders_end = threading.Event()
         self._account_summary_end = threading.Event()
         self._contract_details_end = threading.Event()
+        self._executions_end = threading.Event()
         self._reader_thread: threading.Thread | None = None
         self._lock = threading.Lock()
         self._connection_closed = False
@@ -50,6 +54,7 @@ class IbkrStateClient(EWrapper, EClient):
         self._open_orders: dict[int, BrokerOrder] = {}
         self._account_summary_rows: list[dict[str, str]] = []
         self._contract_details: dict[int, object] = {}
+        self._executions: dict[str, BrokerFill] = {}
         self._errors: list[BrokerError] = []
 
     def connect_and_run(self) -> None:
@@ -93,6 +98,7 @@ class IbkrStateClient(EWrapper, EClient):
         self._orders_end.set()
         self._account_summary_end.set()
         self._contract_details_end.set()
+        self._executions_end.set()
 
     def error(
         self,
@@ -154,6 +160,27 @@ class IbkrStateClient(EWrapper, EClient):
     def contractDetailsEnd(self, reqId: int) -> None:
         self._contract_details_end.set()
 
+    def execDetails(self, reqId: int, contract: Contract, execution) -> None:
+        fill = BrokerFill(
+            exec_id=str(getattr(execution, "execId", "") or ""),
+            order_id=int(getattr(execution, "orderId", 0) or 0),
+            con_id=int(getattr(contract, "conId", 0) or 0),
+            symbol=str(getattr(contract, "symbol", "") or ""),
+            local_symbol=str(getattr(contract, "localSymbol", "") or ""),
+            side=str(getattr(execution, "side", "") or ""),
+            quantity=int(float(getattr(execution, "shares", 0) or 0)),
+            price=float(getattr(execution, "price", 0.0) or 0.0),
+            time=str(getattr(execution, "time", "") or ""),
+            order_ref=str(getattr(execution, "orderRef", "") or "") or None,
+        )
+        if not fill.exec_id:
+            return
+        with self._lock:
+            self._executions[fill.exec_id] = fill
+
+    def execDetailsEnd(self, reqId: int) -> None:
+        self._executions_end.set()
+
     def accountSummary(
         self,
         reqId: int,
@@ -211,14 +238,29 @@ class IbkrStateClient(EWrapper, EClient):
         account = self.get_account_state()
         positions = self.get_positions()
         open_orders = self.get_open_orders()
-        next_rth_days = self.get_next_rth_days({p.con_id for p in positions})
+        details_by_con_id = self.get_contract_details_for_con_ids(
+            {p.con_id for p in positions}
+        )
+        next_rth_days = {
+            con_id: next_day
+            for con_id, details in details_by_con_id.items()
+            if (next_day := _next_rth_day_from_details(details)) is not None
+        }
+        contract_meta = {
+            con_id: meta
+            for con_id, details in details_by_con_id.items()
+            if (meta := _contract_meta_from_details(con_id, details)) is not None
+        }
+        recent_fills = self.get_recent_fills()
         errors = self.errors_snapshot()
         return BrokerState(
             collected_at=datetime.now(tz=timezone.utc),
             account=account,
             positions=positions,
             open_orders=open_orders,
+            recent_fills=recent_fills,
             next_rth_days=next_rth_days,
+            contract_meta=contract_meta,
             recent_errors=errors,
         )
 
@@ -254,6 +296,22 @@ class IbkrStateClient(EWrapper, EClient):
 
     def get_next_rth_day(self, con_id: int) -> date | None:
         """Fetch and parse the next RTH session date for one contract."""
+        details = self.get_contract_details(con_id)
+        if details is None:
+            return None
+        return _next_rth_day_from_details(details)
+
+    def get_contract_details_for_con_ids(self, con_ids: set[int]) -> dict[int, object]:
+        """Fetch raw IBKR contract details for current position contracts."""
+        details_by_con_id: dict[int, object] = {}
+        for con_id in sorted(con_ids):
+            details = self.get_contract_details(con_id)
+            if details is not None:
+                details_by_con_id[con_id] = details
+        return details_by_con_id
+
+    def get_contract_details(self, con_id: int) -> object | None:
+        """Fetch raw IBKR contract details for one contract id."""
         req_id = self._next_contract_details_req_id()
         contract = Contract()
         contract.conId = con_id
@@ -267,9 +325,29 @@ class IbkrStateClient(EWrapper, EClient):
 
         with self._lock:
             details = self._contract_details.pop(req_id, None)
-        if details is None:
-            return None
-        return parse_next_rth_day(getattr(details, "liquidHours", "") or "")
+        return details
+
+    def get_recent_fills(
+        self,
+        *,
+        lookback_hours: int = config.EXECUTION_LOOKBACK_HOURS,
+        timeout: float = 10.0,
+    ) -> list[BrokerFill]:
+        """Fetch recent execution fills from IBKR for entry-date display."""
+        req_id = 9002
+        exec_filter = ExecutionFilter()
+        lookback_start = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
+        exec_filter.time = lookback_start.strftime("%Y%m%d-%H:%M:%S")
+
+        with self._lock:
+            self._executions.clear()
+        self._executions_end.clear()
+        self.reqExecutions(req_id, exec_filter)
+        if not self._executions_end.wait(timeout):
+            return []
+        self._raise_if_closed("executions")
+        with self._lock:
+            return list(self._executions.values())
 
     def _next_contract_details_req_id(self) -> int:
         with self._lock:
@@ -299,6 +377,53 @@ def _require_client_zero() -> None:
             "Quintet broker-state collection requires config.CLIENT_ID = 0 "
             "so manual TWS/Gateway trades and orders are included."
         )
+
+
+def _next_rth_day_from_details(details) -> date | None:
+    return parse_next_rth_day(getattr(details, "liquidHours", "") or "")
+
+
+def _contract_meta_from_details(con_id: int, details) -> ContractMeta | None:
+    contract = getattr(details, "contract", None)
+    if contract is None:
+        return None
+    last_trade_date = _parse_ibkr_contract_date(
+        getattr(contract, "lastTradeDateOrContractMonth", "") or ""
+    )
+    return ContractMeta(
+        con_id=con_id,
+        symbol=str(getattr(contract, "symbol", "") or ""),
+        local_symbol=str(getattr(contract, "localSymbol", "") or ""),
+        exchange=str(getattr(contract, "exchange", "") or ""),
+        currency=str(getattr(contract, "currency", "") or ""),
+        multiplier=_optional_float(getattr(contract, "multiplier", None)) or 1.0,
+        min_tick=_optional_float(getattr(details, "minTick", None)) or 0.0,
+        price_magnifier=int(
+            _optional_float(getattr(details, "priceMagnifier", None)) or 1
+        ),
+        last_trade_date=last_trade_date,
+        last_day=None,
+    )
+
+
+def _parse_ibkr_contract_date(value: str) -> date | None:
+    value = str(value or "")
+    if len(value) < 8:
+        return None
+    try:
+        return datetime.strptime(value[:8], "%Y%m%d").date()
+    except ValueError:
+        return None
+
+
+def _optional_float(value) -> float | None:
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number < 1e300 else None
 
 
 class IbkrBrokerGateway:

@@ -12,6 +12,8 @@ RESISTANCE_COLOR = "darkgreen"
 SCAN_START_COLOR = "rgba(150, 150, 150, 0.6)"
 SCAN_END_COLOR = "rgba(150, 150, 150, 0.6)"
 LAST_DAY_COLOR = "rgba(150, 150, 150, 0.8)"
+OFFICIAL_LAST_DAY_COLOR = "#E63946"
+ENTRY_DATE_COLOR = "#2ECC71"
 
 # =============================================================================
 # COLORS - OHLC

@@ -9,9 +9,11 @@ from plotly.subplots import make_subplots
 from quintet.config import INDICATORS, SYSTEMS
 from quintet.dashboard.config import (
     CHART_HEIGHT,
+    ENTRY_DATE_COLOR,
     LAST_DAY_COLOR,
     OHLC_DECREASING,
     OHLC_INCREASING,
+    OFFICIAL_LAST_DAY_COLOR,
     RESISTANCE_COLOR,
     SCAN_END_COLOR,
     SCAN_START_COLOR,
@@ -27,6 +29,10 @@ def create_contract_figure(
     days: int = 90,
     contract_dates: ContractDates | None = None,
     system_filter: str = "all",
+    entry_price: float | None = None,
+    stop_price: float | None = None,
+    entry_date=None,
+    official_last_day=None,
 ) -> go.Figure:
     """OHLC + Sup/Res overlays with a volume subplot.
 
@@ -37,6 +43,10 @@ def create_contract_figure(
         days: Number of trailing days to show (0 for all).
         contract_dates: Optional scan_start / scan_end / last_day markers.
         system_filter: "all" or one of C4/CS4/E4/E7/E13 (filters S/R overlays).
+        entry_price: Optional open-position entry/average price marker.
+        stop_price: Optional protective stop marker.
+        entry_date: Optional open-position entry date marker.
+        official_last_day: Optional live-calendar/broker-confirmed last-day marker.
     """
     if df is None or len(df) == 0:
         return _create_empty_figure(title)
@@ -63,8 +73,15 @@ def create_contract_figure(
     _add_volume_bars(fig, df)
 
     if contract_dates:
-        _add_date_lines(fig, contract_dates, df)
+        _add_date_lines(
+            fig,
+            contract_dates,
+            df,
+            entry_date=entry_date,
+            official_last_day=official_last_day,
+        )
 
+    _add_position_lines(fig, entry_price=entry_price, stop_price=stop_price)
     _configure_layout(fig, exclude_dates)
     return fig
 
@@ -149,11 +166,16 @@ def _add_date_lines(
     fig: go.Figure,
     contract_dates: ContractDates,
     df: pd.DataFrame,
+    *,
+    entry_date=None,
+    official_last_day=None,
 ) -> None:
     date_configs = [
         (contract_dates.start_scan, SCAN_START_COLOR, "Scan Start"),
         (contract_dates.end_scan, SCAN_END_COLOR, "Scan End"),
-        (contract_dates.last_day, LAST_DAY_COLOR, "Last Day"),
+        (contract_dates.last_day, LAST_DAY_COLOR, "Estimated Last Day"),
+        (official_last_day, OFFICIAL_LAST_DAY_COLOR, "LAST DAY"),
+        (entry_date, ENTRY_DATE_COLOR, "Entry Date"),
     ]
 
     min_date = df.index.min()
@@ -183,6 +205,40 @@ def _add_date_lines(
             showarrow=False,
             font=dict(size=10, color=color),
             yshift=10,
+        )
+
+
+def _add_position_lines(
+    fig: go.Figure,
+    *,
+    entry_price: float | None,
+    stop_price: float | None,
+) -> None:
+    if entry_price is not None:
+        fig.add_hline(
+            y=entry_price,
+            line_dash="dash",
+            line_color="#2A9D8F",
+            line_width=1.5,
+            annotation_text=f"Entry {entry_price:,.2f}",
+            annotation_position="top left",
+            annotation_font_color="#2A9D8F",
+            annotation_font_size=10,
+            row=1,
+            col=1,
+        )
+    if stop_price is not None:
+        fig.add_hline(
+            y=stop_price,
+            line_dash="dash",
+            line_color="#E63946",
+            line_width=1.5,
+            annotation_text=f"Stop {stop_price:,.2f}",
+            annotation_position="bottom left",
+            annotation_font_color="#E63946",
+            annotation_font_size=10,
+            row=1,
+            col=1,
         )
 
 
